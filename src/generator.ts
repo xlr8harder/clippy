@@ -7,8 +7,10 @@ import {
   deepFreeze,
   type FinishReason,
   type GenerateOptions,
+  type ReasoningEffortId,
 } from '@deepseek-ai/dsh-llm'
 import { buildClippyEvidence, type ClippyEvidence } from './context.ts'
+import { operationalFallbackStatement } from './fallback.ts'
 import {
   chooseRandomOfficeTask,
   parseClippyDraft,
@@ -17,8 +19,10 @@ import {
   type OfficeTask,
 } from './response.ts'
 
-const MAX_OUTPUT_TOKENS = 1_024
-const CALL_TIMEOUT_MS = 30_000
+const PRIMARY_MAX_OUTPUT_TOKENS = 3_072
+const PRIMARY_TIMEOUT_MS = 90_000
+const RETRY_MAX_OUTPUT_TOKENS = 2_048
+const RETRY_TIMEOUT_MS = 60_000
 const recentOfficeTasks = new WeakMap<Agent, readonly OfficeTask[]>()
 
 export const CLIPPY_SYSTEM_PROMPT = [
@@ -111,10 +115,14 @@ function terminalError(finish: FinishReason): Error | undefined {
   }
 }
 
-function modelRoute(agent: Agent): { provider: string; model: string } {
+function modelRoute(agent: Agent): { provider: string; model: string; reasoningEffort?: ReasoningEffortId } {
   const logged = agent.session.requestHeader()?.config
   if (logged !== undefined && logged.provider.length > 0 && logged.model.length > 0) {
-    return { provider: logged.provider, model: logged.model }
+    return {
+      provider: logged.provider,
+      model: logged.model,
+      ...(logged.reasoningEffort === undefined ? {} : { reasoningEffort: logged.reasoningEffort }),
+    }
   }
   const { provider, model } = agent.options
   if (provider === undefined || provider.length === 0 || model === undefined || model.length === 0) {
@@ -128,6 +136,7 @@ async function requestDraft(
   agent: Agent,
   evidence: ClippyEvidence,
   signal: AbortSignal,
+  maxTokens: number,
   correction?: string,
 ): Promise<ClippyDraft> {
   const route = modelRoute(agent)
@@ -144,9 +153,10 @@ async function requestDraft(
   const options: GenerateOptions = deepFreeze({
     provider: route.provider,
     model: route.model,
+    ...(route.reasoningEffort === undefined ? {} : { reasoningEffort: route.reasoningEffort }),
     system: CLIPPY_SYSTEM_PROMPT,
     messages: [request],
-    maxTokens: MAX_OUTPUT_TOKENS,
+    maxTokens,
     temperature: 0.2,
     sessionId: agent.id,
     signal,
@@ -175,6 +185,8 @@ async function requestDraft(
 }
 
 function fallbackStatement(evidence: ClippyEvidence): string {
+  const operational = operationalFallbackStatement(evidence)
+  if (operational !== undefined) return operational
   if (evidence.recentErrors.length > 0) return 'you are working through a task that has produced some errors'
   if (evidence.recentTools.length >= 4) return 'you are checking a task from several different angles'
   if (evidence.recentMessages.length >= 2) return 'you are working through a rather involved task'
@@ -202,15 +214,23 @@ export async function generateClippyResponse(
 ): Promise<string> {
   signal.throwIfAborted()
   const evidence = buildClippyEvidence(agent)
-  const callSignal = AbortSignal.any([signal, AbortSignal.timeout(CALL_TIMEOUT_MS)])
   try {
-    const draft = await requestDraft(ctx, agent, evidence, callSignal)
+    const attemptSignal = AbortSignal.any([signal, AbortSignal.timeout(PRIMARY_TIMEOUT_MS)])
+    const draft = await requestDraft(ctx, agent, evidence, attemptSignal, PRIMARY_MAX_OUTPUT_TOKENS)
     return renderWithRandomOffer(agent, draft.statement, random)
   } catch {
     signal.throwIfAborted()
   }
   try {
-    const draft = await requestDraft(ctx, agent, evidence, callSignal, LOWER_TIER_RETRY)
+    const retrySignal = AbortSignal.any([signal, AbortSignal.timeout(RETRY_TIMEOUT_MS)])
+    const draft = await requestDraft(
+      ctx,
+      agent,
+      evidence,
+      retrySignal,
+      RETRY_MAX_OUTPUT_TOKENS,
+      LOWER_TIER_RETRY,
+    )
     if (draft.kind === 'diagnosis') throw new Error('Clippy corrective retry may not return a diagnosis')
     return renderWithRandomOffer(agent, draft.statement, random)
   } catch {

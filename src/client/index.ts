@@ -4,11 +4,12 @@ import { initAgent } from 'clippyjs'
 import Clippy from 'clippyjs/agents/clippy'
 import { ACTIVITY_ANIMATION, activityInput, deriveActivity, type ClippyActivity } from './activity.ts'
 import { commandSpeechUpdate, type CommandSpeechCursor } from './command-speech.ts'
+import { chooseIdleFlourish, idleFlourishDelay, type IdleFlourish } from './idle.ts'
 
 export const inject = ['sessions']
 
-const ACTIVE_REPEAT_MS = 5_000
 const COMPLETE_RESET_MS = 5_500
+const SPEECH_HOLD_MS = 15_000
 const AUTO_MIN_MS = 8 * 60_000
 const AUTO_MAX_MS = 20 * 60_000
 const CLIPPY_GENERATE_PATH = '/api/clippy/generate'
@@ -43,25 +44,37 @@ export function apply(ctx: ClientContext): void {
     let agent: ClippyAgent | undefined
     let currentSession: SessionId | undefined
     let disposeSession: (() => void) | undefined
-    let repeatTimer: number | undefined
     let resetTimer: number | undefined
+    let speechTimer: number | undefined
     let autoTimer: number | undefined
+    let idleTimer: number | undefined
     let autoRequest: AbortController | undefined
     let lastSnapshot: ConversationSnapshot | undefined
     let lastActivity: ClippyActivity = 'idle'
     let commandCursor: CommandSpeechCursor = { hydrated: false }
     let pendingSpeech: string | undefined
+    let lastIdleFlourish: IdleFlourish | undefined
 
     const clearTimers = (): void => {
-      if (repeatTimer !== undefined) window.clearInterval(repeatTimer)
       if (resetTimer !== undefined) window.clearTimeout(resetTimer)
-      repeatTimer = undefined
       resetTimer = undefined
     }
 
     const clearAutoTimer = (): void => {
       if (autoTimer !== undefined) window.clearTimeout(autoTimer)
       autoTimer = undefined
+    }
+
+    const clearIdleTimer = (): void => {
+      if (idleTimer !== undefined) window.clearTimeout(idleTimer)
+      idleTimer = undefined
+    }
+
+    const cancelSpeech = (): void => {
+      if (speechTimer === undefined) return
+      window.clearTimeout(speechTimer)
+      speechTimer = undefined
+      agent?.stop()
     }
 
     const abortAutoRequest = (): void => {
@@ -71,23 +84,56 @@ export function apply(ctx: ClientContext): void {
 
     const say = (text: string): void => {
       clearAutoTimer()
+      clearIdleTimer()
       if (agent === undefined || document.visibilityState !== 'visible') {
         pendingSpeech = text
         return
       }
       pendingSpeech = undefined
+      cancelSpeech()
       agent.stop()
-      agent.speak(text, false)
+      agent.speak(text, true)
+      speechTimer = window.setTimeout(() => {
+        speechTimer = undefined
+        agent?.stop()
+        if (agent !== undefined && document.visibilityState === 'visible' && lastActivity !== 'idle') {
+          agent.play(ACTIVITY_ANIMATION[lastActivity])
+        }
+        scheduleIdleFlourish()
+      }, SPEECH_HOLD_MS)
     }
 
     const play = (activity: ClippyActivity): void => {
-      if (agent === undefined || activity === 'idle' || document.visibilityState !== 'visible') return
+      if (agent === undefined || activity === 'idle' || speechTimer !== undefined
+        || document.visibilityState !== 'visible') return
       const animation = ACTIVITY_ANIMATION[activity]
       agent.stop()
       agent.play(animation)
     }
 
     let scheduleAuto = (): void => {}
+    let scheduleIdleFlourish = (): void => {}
+
+    const playIdleFlourish = (): void => {
+      idleTimer = undefined
+      if (agent === undefined || lastActivity !== 'idle' || speechTimer !== undefined
+        || document.visibilityState !== 'visible') {
+        scheduleIdleFlourish()
+        return
+      }
+      lastIdleFlourish = chooseIdleFlourish(lastIdleFlourish, Math.random())
+      // Exit clippyjs's held terminal idle frame before playing exactly one
+      // quiet idle animation. A zero timeout lets its own exit frame finish.
+      agent.stop()
+      agent.play(lastIdleFlourish, 0)
+      scheduleIdleFlourish()
+    }
+
+    scheduleIdleFlourish = (): void => {
+      if (idleTimer !== undefined || agent === undefined || lastActivity !== 'idle'
+        || speechTimer !== undefined || document.visibilityState !== 'visible') return
+      idleTimer = window.setTimeout(playIdleFlourish, idleFlourishDelay(Math.random()))
+    }
 
     const generateAutomatically = async (): Promise<void> => {
       autoTimer = undefined
@@ -110,9 +156,9 @@ export function apply(ctx: ClientContext): void {
         if (!response.ok) throw new Error(`Clippy endpoint failed: ${response.status}`)
         const text = responseText(await response.json())
         if (currentSession === sessionId && document.visibilityState === 'visible') say(text)
-      } catch (error: unknown) {
+      } catch {
         if (!controller.signal.aborted) {
-          console.error('[dsh-clippy] automatic response failed', error)
+          console.warn('[dsh-clippy] automatic response unavailable')
         }
       } finally {
         if (autoRequest === controller) autoRequest = undefined
@@ -140,6 +186,7 @@ export function apply(ctx: ClientContext): void {
       const next = deriveActivity(activityInput(snapshot), wasRunning)
       lastSnapshot = snapshot
       clearTimers()
+      clearIdleTimer()
       observeManualCommand(snapshot)
 
       if (next !== lastActivity || next === 'done' || next === 'error') play(next)
@@ -148,10 +195,13 @@ export function apply(ctx: ClientContext): void {
       if (snapshot.running) {
         clearAutoTimer()
         abortAutoRequest()
-        repeatTimer = window.setInterval(() => play(lastActivity), ACTIVE_REPEAT_MS)
       } else if (next === 'done' || next === 'error') {
-        resetTimer = window.setTimeout(() => { lastActivity = 'idle' }, COMPLETE_RESET_MS)
+        resetTimer = window.setTimeout(() => {
+          lastActivity = 'idle'
+          scheduleIdleFlourish()
+        }, COMPLETE_RESET_MS)
       }
+      if (next === 'idle') scheduleIdleFlourish()
       if (!snapshot.running) scheduleAuto()
     }
 
@@ -166,7 +216,9 @@ export function apply(ctx: ClientContext): void {
       lastActivity = 'idle'
       commandCursor = { hydrated: false }
       clearTimers()
+      cancelSpeech()
       clearAutoTimer()
+      clearIdleTimer()
       abortAutoRequest()
 
       if (nextSession === undefined) return
@@ -188,8 +240,10 @@ export function apply(ctx: ClientContext): void {
           play(lastActivity)
         }
         scheduleAuto()
+        scheduleIdleFlourish()
       } else {
         clearAutoTimer()
+        clearIdleTimer()
         abortAutoRequest()
         agent.pause()
       }
@@ -221,14 +275,17 @@ export function apply(ctx: ClientContext): void {
         play(lastActivity)
       }
       scheduleAuto()
-    }).catch((error: unknown) => {
-      if (!disposed) console.error('[dsh-clippy] failed to load avatar', error)
+      scheduleIdleFlourish()
+    }).catch(() => {
+      if (!disposed) console.warn('[dsh-clippy] avatar unavailable')
     })
 
     return () => {
       disposed = true
       clearTimers()
+      cancelSpeech()
       clearAutoTimer()
+      clearIdleTimer()
       abortAutoRequest()
       disposeSession?.()
       disposeList()

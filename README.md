@@ -4,14 +4,14 @@ The earnest Microsoft Office Assistant, watching your [DeepSeek Harness](https:/
 
 ![Clippy turning a distributed-systems diagnosis into a meeting agenda](docs/clippy-live-demo.png)
 
-Clippy animates with the agent state (`Thinking`, `Writing`, `Searching`, `GetAttention`, `Congratulate`, and `Alert`). Idle bubbles appear after a randomized 8–20 minute delay. Recent conversation, tool, error, and timing evidence is bounded; private reasoning is excluded.
+Clippy animates once when the agent state changes (`Thinking`, `Writing`, `Searching`, `GetAttention`, `Congratulate`, and `Alert`), then rests. A quiet idle flourish appears every 90 seconds to four minutes; idle bubbles appear after 8–20 minutes. Recent conversation, tool, error, and timing evidence is bounded; private reasoning is excluded.
 
 ## Install
 
-Download `dsh-clippy-0.1.3.tgz` from the GitHub release, then use Dsh's supported profile installer:
+Download `dsh-clippy-0.1.4.tgz` from the GitHub release, then use Dsh's supported profile installer:
 
 ```sh
-dsh plugin --profile web add ./dsh-clippy-0.1.3.tgz
+dsh plugin --profile web add ./dsh-clippy-0.1.4.tgz
 dsh --profile web
 ```
 
@@ -29,13 +29,13 @@ dsh plugin --profile web add link:/absolute/path/to/clippy
 
 ## Use
 
-Clippy moves automatically with the current session. Trigger an immediate conclusion for testing:
+Clippy moves automatically with the current session. Generated balloons remain visible for at least 15 seconds. Trigger an immediate conclusion for testing:
 
 ```text
 /clippy
 ```
 
-Clippy uses the strongest evidence-backed level available: brief diagnosis, salient observation, or short workflow fallback. Hidden support excerpts are validated before display. A rejected draft gets one lower-confidence retry; after that Clippy uses a generic line instead of guessing. Office offers are uniformly random and do not repeat among the four most recent offers.
+Clippy uses the strongest evidence-backed level available: brief diagnosis, salient observation, or short workflow fallback. Hidden support excerpts are validated before display. A rejected draft gets one lower-confidence retry; after that Clippy reports the latest structured test, file, or tool fact before resorting to a generic line. Office offers are uniformly random and do not repeat among the four most recent offers.
 
 ## Develop
 

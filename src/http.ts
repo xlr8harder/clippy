@@ -101,7 +101,7 @@ export function makeClippyGenerateHandler(ctx: Context) {
         writeJson(res, error.status, { error: error.message })
         return
       }
-      ctx.logger.warn(`clippy generation failed: ${error instanceof Error ? error.message : String(error)}`)
+      ctx.logger.warn('clippy generation failed')
       writeJson(res, 500, { error: 'Clippy generation failed' })
     }
   }

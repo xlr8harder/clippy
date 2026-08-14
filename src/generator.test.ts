@@ -1,12 +1,12 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
-import { createUserMessage, type GenerateOptions, type StreamChunk } from '@deepseek-ai/dsh-llm'
+import { createUserMessage, ReasoningEffortId, type GenerateOptions, type StreamChunk } from '@deepseek-ai/dsh-llm'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import { describe, expect, it } from 'vitest'
 import type { ClippyEvidence } from './context.ts'
 import { assertGroundedSupport, CLIPPY_SYSTEM_PROMPT, generateClippyResponse } from './generator.ts'
 
-function fakeAgent(): Agent {
+function fakeAgent(reasoningEffort?: ReturnType<typeof ReasoningEffortId>): Agent {
   const message = createUserMessage({
     content: [
       { type: 'text', text: 'Bisect the duplicate-delivery bug across the queue workers.' },
@@ -21,7 +21,13 @@ function fakeAgent(): Agent {
       deriveMessages: () => [message],
       events: [],
       header: { cwd: '/work/queue' },
-      requestHeader: () => ({ config: { provider: 'openrouter', model: 'deepseek/deepseek-v3.2' } }),
+      requestHeader: () => ({
+        config: {
+          provider: 'openrouter',
+          model: 'deepseek/deepseek-v4-pro-0813',
+          ...(reasoningEffort === undefined ? {} : { reasoningEffort }),
+        },
+      }),
     },
   } as unknown as Agent
 }
@@ -56,16 +62,22 @@ describe('generateClippyResponse', () => {
       },
     } as unknown as Context
 
-    const text = await generateClippyResponse(ctx, fakeAgent(), new AbortController().signal, () => 0)
+    const text = await generateClippyResponse(
+      ctx,
+      fakeAgent(ReasoningEffortId('high')),
+      new AbortController().signal,
+      () => 0,
+    )
 
     expect(text).toBe(
       'It looks like you are bisecting a duplicate-delivery bug across queue workers. Would you like help writing a letter?',
     )
     expect(captured).toMatchObject({
       provider: 'openrouter',
-      model: 'deepseek/deepseek-v3.2',
+      model: 'deepseek/deepseek-v4-pro-0813',
+      reasoningEffort: ReasoningEffortId('high'),
       system: CLIPPY_SYSTEM_PROMPT,
-      maxTokens: 1_024,
+      maxTokens: 3_072,
       temperature: 0.2,
       sessionId: SessionId('session-clippy-test'),
     })
@@ -110,6 +122,8 @@ describe('generateClippyResponse', () => {
     const text = await generateClippyResponse(ctx, fakeAgent(), new AbortController().signal, () => 0)
 
     expect(captured).toHaveLength(2)
+    expect(captured[0]?.signal).not.toBe(captured[1]?.signal)
+    expect(captured.map(request => request.maxTokens)).toEqual([3_072, 2_048])
     expect(JSON.stringify(captured[1]?.messages)).toContain('diagnosis is forbidden')
     expect(text).toBe(
       'It looks like you are bisecting a duplicate-delivery bug across queue workers. Would you like help writing a letter?',

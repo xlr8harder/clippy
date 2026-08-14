@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.4 - 2026-08-14
+
+- Preserve the live session's reasoning effort. Give a high-reasoning primary attempt 3,072 tokens/90 seconds and its simpler lower-tier retry 2,048 tokens/60 seconds.
+- Hold generated speech balloons for at least 15 seconds instead of letting the completion animation dismiss them immediately.
+- Play activity animations only on state changes instead of forcibly restarting long-running tool animations every five seconds.
+- Add a non-repeating, quiet idle flourish at randomized 90-second to four-minute intervals.
+- Prefer a fact-only latest test, file-update, or tool-status line before the generic final fallback, with named detection for common waitable operations.
+- Keep model-validation internals out of browser and host console messages.
+
 ## 0.1.3 - 2026-08-14
 
 - Raise the completion budget to 1,024 tokens so reasoning-capable routes have room to return the strict short draft.
