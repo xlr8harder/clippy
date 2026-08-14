@@ -8,10 +8,10 @@ Clippy animates with the agent state (`Thinking`, `Writing`, `Searching`, `GetAt
 
 ## Install
 
-Download `dsh-clippy-0.1.1.tgz` from the GitHub release, then use Dsh's supported profile installer:
+Download `dsh-clippy-0.1.2.tgz` from the GitHub release, then use Dsh's supported profile installer:
 
 ```sh
-dsh plugin --profile web add ./dsh-clippy-0.1.1.tgz
+dsh plugin --profile web add ./dsh-clippy-0.1.2.tgz
 dsh --profile web
 ```
 
@@ -35,7 +35,7 @@ Clippy moves automatically with the current session. Trigger an immediate conclu
 /clippy
 ```
 
-The model proposes three tangential-but-plausible Office interpretations. Clippy chooses among them; a recently repeated recommendation triggers a random non-repeating choice from the entire Office taxonomy.
+Clippy uses the strongest evidence-backed level available: brief diagnosis, salient observation, or short workflow fallback. Hidden support excerpts are validated before display. A rejected draft gets one lower-confidence retry; after that Clippy uses a generic line instead of guessing. Office offers are uniformly random and do not repeat among the four most recent offers.
 
 ## Develop
 

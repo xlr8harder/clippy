@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.2 - 2026-08-14
+
+- Add a diagnosis, observation, and workflow confidence ladder.
+- Require exact non-user support excerpts for diagnoses and observations, validated by the host before display.
+- Prefer conservative fallback over unsupported causes and lower factual sampling temperature.
+- Retry one rejected draft at a lower confidence tier, then use a deterministic generic workflow line.
+- Choose Office offers randomly from the full taxonomy while avoiding recent repeats.
+
 ## 0.1.1 - 2026-08-14
 
 - Replace literal activity summaries with short, evidence-grounded technical conclusions.

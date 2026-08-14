@@ -3,7 +3,8 @@ import type { Agent } from '@deepseek-ai/dsh-agent'
 import { createUserMessage, type GenerateOptions, type StreamChunk } from '@deepseek-ai/dsh-llm'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import { describe, expect, it } from 'vitest'
-import { CLIPPY_SYSTEM_PROMPT, generateClippyResponse } from './generator.ts'
+import type { ClippyEvidence } from './context.ts'
+import { assertGroundedSupport, CLIPPY_SYSTEM_PROMPT, generateClippyResponse } from './generator.ts'
 
 function fakeAgent(): Agent {
   const message = createUserMessage({
@@ -25,25 +26,27 @@ function fakeAgent(): Agent {
   } as unknown as Agent
 }
 
+function textChunks(text: string): StreamChunk[] {
+  return [
+    { type: 'block-start', index: 0, blockType: 'text' },
+    { type: 'text-delta', index: 0, text },
+    { type: 'finish', reason: { kind: 'stop' } },
+  ]
+}
+
 describe('generateClippyResponse', () => {
-  it('asks for a compact conclusion rather than an activity description', () => {
-    expect(CLIPPY_SYSTEM_PROMPT).toContain('what the evidence establishes')
-    expect(CLIPPY_SYSTEM_PROMPT).toContain('{"conclusion"')
-    expect(CLIPPY_SYSTEM_PROMPT).toContain('Use simple past by default')
+  it('asks for the strongest grounded statement on an explicit confidence ladder', () => {
+    expect(CLIPPY_SYSTEM_PROMPT).toContain('diagnosis')
+    expect(CLIPPY_SYSTEM_PROMPT).toContain('observation')
+    expect(CLIPPY_SYSTEM_PROMPT).toContain('workflow')
+    expect(CLIPPY_SYSTEM_PROMPT).toContain('exact excerpts')
+    expect(CLIPPY_SYSTEM_PROMPT).toContain('{"kind"')
     expect(CLIPPY_SYSTEM_PROMPT).not.toContain('describe what the person')
   })
 
   it('makes one isolated bounded model call and renders its validated draft', async () => {
     let captured: GenerateOptions | undefined
-    const chunks: StreamChunk[] = [
-      { type: 'block-start', index: 0, blockType: 'text' },
-      {
-        type: 'text-delta',
-        index: 0,
-        text: '{"conclusion":"you made the queue lease shorter than the acknowledgement deadline","officeTasks":["resume","spreadsheet","fax"]}',
-      },
-      { type: 'finish', reason: { kind: 'stop' } },
-    ]
+    const chunks = textChunks('{"kind":"workflow","support":["Bisect the duplicate-delivery bug across the queue workers."],"statement":"you are bisecting a duplicate-delivery bug across queue workers"}')
     const ctx = {
       llm: {
         stream: (options: GenerateOptions) => {
@@ -56,14 +59,14 @@ describe('generateClippyResponse', () => {
     const text = await generateClippyResponse(ctx, fakeAgent(), new AbortController().signal, () => 0)
 
     expect(text).toBe(
-      'It looks like you made the queue lease shorter than the acknowledgement deadline. Would you like help drafting a résumé?',
+      'It looks like you are bisecting a duplicate-delivery bug across queue workers. Would you like help writing a letter?',
     )
     expect(captured).toMatchObject({
       provider: 'openrouter',
       model: 'deepseek/deepseek-v3.2',
       system: CLIPPY_SYSTEM_PROMPT,
       maxTokens: 220,
-      temperature: 0.4,
+      temperature: 0.2,
       sessionId: SessionId('session-clippy-test'),
     })
     expect(captured).not.toHaveProperty('tools')
@@ -71,20 +74,12 @@ describe('generateClippyResponse', () => {
     expect(captured?.messages).toHaveLength(1)
     const serialized = JSON.stringify(captured?.messages)
     expect(serialized).toContain('Bisect the duplicate-delivery bug')
-    expect(serialized).toContain('recentClippyOffers')
+    expect(serialized).not.toContain('recentClippyOffers')
     expect(serialized).not.toContain('private analysis')
   })
 
-  it('does not repeat an Office offer when the model keeps proposing the same one', async () => {
-    const chunks: StreamChunk[] = [
-      { type: 'block-start', index: 0, blockType: 'text' },
-      {
-        type: 'text-delta',
-        index: 0,
-        text: '{"conclusion":"you made the queue lease expire before acknowledgement","officeTasks":["memo","letter","fax"]}',
-      },
-      { type: 'finish', reason: { kind: 'stop' } },
-    ]
+  it('does not repeat a random Office offer', async () => {
+    const chunks = textChunks('{"kind":"workflow","support":["Bisect the duplicate-delivery bug across the queue workers."],"statement":"you are bisecting a duplicate-delivery bug across queue workers"}')
     const ctx = {
       llm: { stream: () => (async function* () { yield* chunks })() },
     } as unknown as Context
@@ -93,7 +88,85 @@ describe('generateClippyResponse', () => {
     const first = await generateClippyResponse(ctx, agent, new AbortController().signal, () => 0)
     const second = await generateClippyResponse(ctx, agent, new AbortController().signal, () => 0)
 
-    expect(first).toMatch(/preparing a memo/)
-    expect(second).toMatch(/writing a letter/)
+    expect(first).toMatch(/writing a letter/)
+    expect(second).toMatch(/drafting a résumé/)
+  })
+
+  it('retries a rejected draft once with diagnosis forbidden', async () => {
+    const outputs = [
+      '{"kind":"diagnosis","support":["Bisect the duplicate-delivery bug across the queue workers."],"statement":"you forgot to renew the queue lease"}',
+      '{"kind":"workflow","support":["Bisect the duplicate-delivery bug across the queue workers."],"statement":"you are bisecting a duplicate-delivery bug across queue workers"}',
+    ]
+    const captured: GenerateOptions[] = []
+    const ctx = {
+      llm: {
+        stream: (options: GenerateOptions) => {
+          captured.push(options)
+          return (async function* () { yield* textChunks(outputs[captured.length - 1]!) })()
+        },
+      },
+    } as unknown as Context
+
+    const text = await generateClippyResponse(ctx, fakeAgent(), new AbortController().signal, () => 0)
+
+    expect(captured).toHaveLength(2)
+    expect(JSON.stringify(captured[1]?.messages)).toContain('diagnosis is forbidden')
+    expect(text).toBe(
+      'It looks like you are bisecting a duplicate-delivery bug across queue workers. Would you like help writing a letter?',
+    )
+  })
+
+  it('uses a generic workflow line when both model drafts are rejected', async () => {
+    let calls = 0
+    const ctx = {
+      llm: {
+        stream: () => {
+          calls += 1
+          return (async function* () { yield* textChunks('not JSON') })()
+        },
+      },
+    } as unknown as Context
+
+    const text = await generateClippyResponse(ctx, fakeAgent(), new AbortController().signal, () => 0)
+
+    expect(calls).toBe(2)
+    expect(text).toBe(
+      'It looks like you are getting started on a new task. Would you like help writing a letter?',
+    )
+  })
+
+  it('allows user evidence only for workflow fallback', () => {
+    const evidence = {
+      activityMinutes: 2,
+      recentMessages: [
+        { role: 'user', text: 'Find the race in the shared index.' },
+        { role: 'assistant', text: '**The mutation source was not captured.**' },
+      ],
+      recentTools: [{
+        name: 'run_tests',
+        arguments: '--repeat 100',
+        outcome: 'success',
+        resultExcerpt: '99 passed; one assertion received four results instead of five',
+      }],
+      recentErrors: [],
+      omittedEarlierContext: false,
+    } satisfies ClippyEvidence
+
+    expect(() => assertGroundedSupport({
+      kind: 'observation',
+      support: ['99 passed; one assertion received four results instead of five'],
+    }, evidence)).not.toThrow()
+    expect(() => assertGroundedSupport({
+      kind: 'observation',
+      support: ['The mutation source was not captured.'],
+    }, evidence)).not.toThrow()
+    expect(() => assertGroundedSupport({
+      kind: 'diagnosis',
+      support: ['Find the race in the shared index.'],
+    }, evidence)).toThrow(/disallowed user source/)
+    expect(() => assertGroundedSupport({
+      kind: 'workflow',
+      support: ['Find the race in the shared index.'],
+    }, evidence)).not.toThrow()
   })
 })

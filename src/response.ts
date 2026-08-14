@@ -16,21 +16,26 @@ export const OFFICE_OFFERS = {
 } as const
 
 export type OfficeTask = keyof typeof OFFICE_OFFERS
+export const STATEMENT_KINDS = ['diagnosis', 'observation', 'workflow'] as const
+export type StatementKind = (typeof STATEMENT_KINDS)[number]
+const STATEMENT_KIND_SET = new Set<string>(STATEMENT_KINDS)
 
 export interface ClippyDraft {
-  readonly conclusion: string
-  readonly officeTasks: readonly [OfficeTask, OfficeTask, OfficeTask]
+  readonly kind: StatementKind
+  readonly support: readonly [string] | readonly [string, string]
+  readonly statement: string
 }
 
 export const OFFICE_TASKS = Object.freeze(Object.keys(OFFICE_OFFERS) as OfficeTask[])
-const OFFICE_TASK_SET = new Set<string>(OFFICE_TASKS)
-const MAX_CONCLUSION_CHARS = 140
+const MAX_STATEMENT_CHARS = 140
+const MIN_SUPPORT_CHARS = 12
+const MAX_SUPPORT_CHARS = 240
 
 function plainRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-/** Parse one exact, two-field response. Malformed model output fails closed. */
+/** Parse one exact model draft. Malformed output fails closed. */
 export function parseClippyDraft(raw: string): ClippyDraft {
   let parsed: unknown
   try {
@@ -40,53 +45,49 @@ export function parseClippyDraft(raw: string): ClippyDraft {
   }
   if (!plainRecord(parsed)) throw new Error('Clippy model output must be a JSON object')
   const keys = Object.keys(parsed).sort()
-  if (keys.length !== 2 || keys[0] !== 'conclusion' || keys[1] !== 'officeTasks') {
-    throw new Error('Clippy model output must contain exactly conclusion and officeTasks')
+  if (keys.length !== 3 || keys[0] !== 'kind' || keys[1] !== 'statement' || keys[2] !== 'support') {
+    throw new Error('Clippy model output must contain exactly kind, support, and statement')
   }
-  if (typeof parsed.conclusion !== 'string') throw new Error('Clippy conclusion must be a string')
-  let conclusion = parsed.conclusion.replace(/\s+/gu, ' ').trim()
-  conclusion = conclusion.replace(/[.!?]+$/u, '')
-  if (conclusion.length === 0 || conclusion.length > MAX_CONCLUSION_CHARS) {
-    throw new Error(`Clippy conclusion must contain 1-${MAX_CONCLUSION_CHARS} characters`)
+  if (typeof parsed.kind !== 'string' || !STATEMENT_KIND_SET.has(parsed.kind)) {
+    throw new Error(`Clippy kind must be one of: ${STATEMENT_KINDS.join(', ')}`)
   }
-  if (!/^you(?:\s|$)/u.test(conclusion)) {
-    throw new Error('Clippy conclusion must address the person directly and begin with you')
+  if (!Array.isArray(parsed.support) || parsed.support.length < 1 || parsed.support.length > 2
+    || parsed.support.some(excerpt => typeof excerpt !== 'string')) {
+    throw new Error('Clippy support must contain one or two strings')
   }
-  if (!Array.isArray(parsed.officeTasks) || parsed.officeTasks.length !== 3
-    || parsed.officeTasks.some(task => typeof task !== 'string' || !OFFICE_TASK_SET.has(task))) {
-    throw new Error(`Clippy officeTasks must be three values from: ${OFFICE_TASKS.join(', ')}`)
+  const support = parsed.support.map(excerpt => (excerpt as string).replace(/\s+/gu, ' ').trim())
+  if (support.some(excerpt => excerpt.length < MIN_SUPPORT_CHARS || excerpt.length > MAX_SUPPORT_CHARS)) {
+    throw new Error(`Clippy support excerpts must contain ${MIN_SUPPORT_CHARS}-${MAX_SUPPORT_CHARS} characters`)
   }
-  if (new Set(parsed.officeTasks).size !== parsed.officeTasks.length) {
-    throw new Error('Clippy officeTasks must contain three distinct values')
+  if (new Set(support).size !== support.length) {
+    throw new Error('Clippy support excerpts must be distinct')
+  }
+  if (typeof parsed.statement !== 'string') throw new Error('Clippy statement must be a string')
+  let statement = parsed.statement.replace(/\s+/gu, ' ').trim()
+  statement = statement.replace(/[.!?]+$/u, '')
+  if (statement.length === 0 || statement.length > MAX_STATEMENT_CHARS) {
+    throw new Error(`Clippy statement must contain 1-${MAX_STATEMENT_CHARS} characters`)
+  }
+  if (!/^you(?:\s|$)/u.test(statement)) {
+    throw new Error('Clippy statement must address the person directly and begin with you')
   }
   return {
-    conclusion,
-    officeTasks: parsed.officeTasks as unknown as readonly [OfficeTask, OfficeTask, OfficeTask],
+    kind: parsed.kind as StatementKind,
+    support: support as unknown as readonly [string] | readonly [string, string],
+    statement,
   }
 }
 
-/**
- * Choose from the model's plausible shortlist. A recent repeat triggers pure
- * Office-era caprice across the rest of the taxonomy.
- */
-export function chooseOfficeTask(
-  suggestions: readonly [OfficeTask, OfficeTask, OfficeTask],
-  recent: readonly OfficeTask[],
-  recommendationRoll: number,
-  fallbackRoll: number,
-): OfficeTask {
-  if (!Number.isFinite(recommendationRoll) || recommendationRoll < 0 || recommendationRoll >= 1
-    || !Number.isFinite(fallbackRoll) || fallbackRoll < 0 || fallbackRoll >= 1) {
+/** Choose uniformly from the full taxonomy while preserving recent-offer diversity. */
+export function chooseRandomOfficeTask(recent: readonly OfficeTask[], roll: number): OfficeTask {
+  if (!Number.isFinite(roll) || roll < 0 || roll >= 1) {
     throw new RangeError('Clippy diversity roll must be in the range [0, 1)')
   }
-  const recommended = suggestions[Math.floor(recommendationRoll * suggestions.length)]!
-  if (!recent.includes(recommended)) return recommended
-
-  const entireTaxonomy = OFFICE_TASKS.filter(task => !recent.includes(task))
-  if (entireTaxonomy.length === 0) throw new Error('Clippy has exhausted the Office taxonomy')
-  return entireTaxonomy[Math.floor(fallbackRoll * entireTaxonomy.length)]!
+  const nonRepeating = OFFICE_TASKS.filter(task => !recent.includes(task))
+  const choices = nonRepeating.length === 0 ? OFFICE_TASKS : nonRepeating
+  return choices[Math.floor(roll * choices.length)]!
 }
 
-export function renderClippyResponse(draft: Pick<ClippyDraft, 'conclusion'> & { readonly officeTask: OfficeTask }): string {
-  return `It looks like ${draft.conclusion}. Would you like help ${OFFICE_OFFERS[draft.officeTask]}?`
+export function renderClippyResponse(draft: Pick<ClippyDraft, 'statement'> & { readonly officeTask: OfficeTask }): string {
+  return `It looks like ${draft.statement}. Would you like help ${OFFICE_OFFERS[draft.officeTask]}?`
 }

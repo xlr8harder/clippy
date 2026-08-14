@@ -1,6 +1,7 @@
 [
   {
     "id": "distributed-timeouts",
+    "expectedKind": "diagnosis",
     "evidence": {
       "cwd": "/work/dispatch",
       "activityMinutes": 47,
@@ -14,12 +15,12 @@
         { "name": "git_bisect", "arguments": "release/2026-07..HEAD", "outcome": "success", "resultExcerpt": "No behavior change across tested revisions" }
       ],
       "recentErrors": [],
-      "omittedEarlierContext": false,
-      "recentClippyOffers": ["memo"]
+      "omittedEarlierContext": false
     }
   },
   {
     "id": "hover-tooltip",
+    "expectedKind": "diagnosis",
     "evidence": {
       "cwd": "/work/dashboard",
       "activityMinutes": 23,
@@ -32,12 +33,12 @@
         { "name": "read_file", "arguments": "Tooltip.tsx", "outcome": "success", "resultExcerpt": "onPointerLeave={() => setOpen(false)} is attached only to the button" }
       ],
       "recentErrors": [],
-      "omittedEarlierContext": false,
-      "recentClippyOffers": ["presentation", "memo"]
+      "omittedEarlierContext": false
     }
   },
   {
     "id": "benchmark-optimization",
+    "expectedKind": "observation",
     "evidence": {
       "cwd": "/work/parser",
       "activityMinutes": 61,
@@ -51,12 +52,12 @@
         { "name": "profile", "arguments": "parser-cache", "outcome": "success", "resultExcerpt": "78% of time remains in schema validation after cache lookup" }
       ],
       "recentErrors": [],
-      "omittedEarlierContext": false,
-      "recentClippyOffers": ["chart", "spreadsheet"]
+      "omittedEarlierContext": false
     }
   },
   {
     "id": "citation-draft",
+    "expectedKind": "observation",
     "evidence": {
       "cwd": "/work/paper",
       "activityMinutes": 36,
@@ -70,12 +71,12 @@
         { "name": "read_citation", "arguments": "doi:10.1000/example", "outcome": "success", "resultExcerpt": "Limitations: durability beyond the one-week follow-up is unknown" }
       ],
       "recentErrors": [],
-      "omittedEarlierContext": false,
-      "recentClippyOffers": ["report"]
+      "omittedEarlierContext": false
     }
   },
   {
     "id": "deployment-environment",
+    "expectedKind": "diagnosis",
     "evidence": {
       "cwd": "/work/storefront",
       "activityMinutes": 29,
@@ -88,12 +89,12 @@
         { "name": "read_manifest", "arguments": "deploy/production.yaml", "outcome": "success", "resultExcerpt": "envFrom: payments-staging; metadata.name: storefront-production" }
       ],
       "recentErrors": ["PAYMENT_ACCOUNT_MISMATCH: expected live account, received test account"],
-      "omittedEarlierContext": false,
-      "recentClippyOffers": ["memo", "report", "presentation"]
+      "omittedEarlierContext": false
     }
   },
   {
     "id": "release-package",
+    "expectedKind": "diagnosis",
     "evidence": {
       "cwd": "/work/widget",
       "activityMinutes": 18,
@@ -107,8 +108,63 @@
         { "name": "read_file", "arguments": ".npmignore", "outcome": "error", "resultExcerpt": "File not found" }
       ],
       "recentErrors": ["ENOENT: .npmignore does not exist"],
-      "omittedEarlierContext": false,
-      "recentClippyOffers": ["newsletter", "memo"]
+      "omittedEarlierContext": false
+    }
+  },
+  {
+    "id": "ambiguous-timeouts",
+    "expectedKind": "observation",
+    "evidence": {
+      "cwd": "/work/notifications",
+      "activityMinutes": 31,
+      "recentMessages": [
+        { "role": "user", "text": "Notification requests sometimes time out in production. Work out why." },
+        { "role": "assistant", "text": "There are several incomplete requests, but the available trace ends before the downstream response." }
+      ],
+      "recentTools": [
+        { "name": "search_logs", "arguments": "request_id in failed sample", "outcome": "success", "resultExcerpt": "gateway timeout after 10s; worker began delivery; no provider response recorded before trace ended" },
+        { "name": "read_config", "arguments": "timeouts.yaml", "outcome": "success", "resultExcerpt": "gateway: 10s; worker: 30s; provider client: 8s with two retries" },
+        { "name": "compare_samples", "arguments": "successful and timed-out requests", "outcome": "success", "resultExcerpt": "Both paths use the same timeout settings; failed sample lacks downstream timing spans" }
+      ],
+      "recentErrors": ["GATEWAY_TIMEOUT: request exceeded 10 seconds"],
+      "omittedEarlierContext": true
+    }
+  },
+  {
+    "id": "sparse-refactor-workflow",
+    "expectedKind": "workflow",
+    "evidence": {
+      "cwd": "/work/accounts",
+      "activityMinutes": 7,
+      "recentMessages": [
+        { "role": "user", "text": "Move the account lookup endpoint from REST to GraphQL without changing behavior." },
+        { "role": "assistant", "text": "I will inspect the existing route, schema, and tests before editing." }
+      ],
+      "recentTools": [
+        { "name": "read_file", "arguments": "routes/accounts.ts", "outcome": "success", "resultExcerpt": "GET /accounts/:id returns an account or 404" },
+        { "name": "read_file", "arguments": "graphql/schema.ts", "outcome": "success", "resultExcerpt": "Existing Query type has no account field" }
+      ],
+      "recentErrors": [],
+      "omittedEarlierContext": false
+    }
+  },
+  {
+    "id": "flaky-test-no-cause",
+    "expectedKind": "observation",
+    "evidence": {
+      "cwd": "/work/search",
+      "activityMinutes": 44,
+      "recentMessages": [
+        { "role": "user", "text": "This test failed twice in CI and never locally. Find the race." },
+        { "role": "assistant", "text": "I reproduced one failure under CPU contention, but the trace does not identify which shared state changed." }
+      ],
+      "recentTools": [
+        { "name": "run_tests", "arguments": "--repeat 100", "outcome": "success", "resultExcerpt": "99 passed; one assertion observed 4 results instead of 5 under CPU contention" },
+        { "name": "trace_test", "arguments": "failed iteration", "outcome": "success", "resultExcerpt": "index refresh and query overlapped; event ordering differs; no mutation source captured" },
+        { "name": "search_code", "arguments": "shared index writes", "outcome": "success", "resultExcerpt": "Three possible writers update the index asynchronously" }
+      ],
+      "recentErrors": ["AssertionError: expected 5 results, received 4"],
+      "omittedEarlierContext": false
     }
   }
 ]
