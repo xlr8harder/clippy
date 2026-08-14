@@ -17,7 +17,7 @@ import {
   type OfficeTask,
 } from './response.ts'
 
-const MAX_OUTPUT_TOKENS = 220
+const MAX_OUTPUT_TOKENS = 1_024
 const CALL_TIMEOUT_MS = 30_000
 const recentOfficeTasks = new WeakMap<Agent, readonly OfficeTask[]>()
 

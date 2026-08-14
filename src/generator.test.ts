@@ -65,7 +65,7 @@ describe('generateClippyResponse', () => {
       provider: 'openrouter',
       model: 'deepseek/deepseek-v3.2',
       system: CLIPPY_SYSTEM_PROMPT,
-      maxTokens: 220,
+      maxTokens: 1_024,
       temperature: 0.2,
       sessionId: SessionId('session-clippy-test'),
     })

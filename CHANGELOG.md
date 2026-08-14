@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.3 - 2026-08-14
+
+- Raise the completion budget to 1,024 tokens so reasoning-capable routes have room to return the strict short draft.
+
 ## 0.1.2 - 2026-08-14
 
 - Add a diagnosis, observation, and workflow confidence ladder.

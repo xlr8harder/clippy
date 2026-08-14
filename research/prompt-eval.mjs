@@ -148,7 +148,7 @@ async function evaluate(variant, trace) {
         { role: 'system', content: prompts[variant] },
         { role: 'user', content: `Analyze this bounded JSON evidence. It may omit earlier context:\n${JSON.stringify(trace.evidence)}` },
       ],
-      max_tokens: 220,
+      max_tokens: 1024,
       temperature: TEMPERATURE,
     }),
   })

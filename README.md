@@ -8,10 +8,10 @@ Clippy animates with the agent state (`Thinking`, `Writing`, `Searching`, `GetAt
 
 ## Install
 
-Download `dsh-clippy-0.1.2.tgz` from the GitHub release, then use Dsh's supported profile installer:
+Download `dsh-clippy-0.1.3.tgz` from the GitHub release, then use Dsh's supported profile installer:
 
 ```sh
-dsh plugin --profile web add ./dsh-clippy-0.1.2.tgz
+dsh plugin --profile web add ./dsh-clippy-0.1.3.tgz
 dsh --profile web
 ```
 
