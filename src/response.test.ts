@@ -4,10 +4,6 @@ import { chooseRandomOfficeTask, OFFICE_TASKS, parseClippyDraft, renderClippyRes
 describe('Clippy response boundary', () => {
   const validDraft = {
     kind: 'diagnosis',
-    support: [
-      'visibility_timeout: 3s; acknowledgement_deadline: 5s',
-      'lease expired; redelivered; ack accepted by original worker',
-    ],
     statement: 'you let the queue lease expire before acknowledgement.',
   }
 
@@ -18,11 +14,11 @@ describe('Clippy response boundary', () => {
     )
   })
 
-  it('rejects prose wrappers, unknown fields, and invented taxonomy values', () => {
-    expect(() => parseClippyDraft(`\`\`\`json\n${JSON.stringify(validDraft)}\n\`\`\``))
-      .toThrow(/not valid JSON/)
-    expect(() => parseClippyDraft(JSON.stringify({ ...validDraft, joke: true })))
-      .toThrow(/exactly kind, support, and statement/)
+  it('accepts fenced JSON and harmless extra fields from weaker models', () => {
+    const normalized = { ...validDraft, statement: validDraft.statement.slice(0, -1) }
+    expect(parseClippyDraft(`\`\`\`json\n${JSON.stringify(validDraft)}\n\`\`\``)).toMatchObject(normalized)
+    expect(parseClippyDraft(JSON.stringify({ ...validDraft, support: ['legacy excerpt'], joke: true })))
+      .toMatchObject(normalized)
   })
 
   it('rejects observer language instead of calling the person you', () => {
@@ -47,12 +43,12 @@ describe('Clippy response boundary', () => {
     }))).toThrow(/1-140 characters/)
   })
 
-  it('requires a known kind and one or two substantial support excerpts', () => {
+  it('requires a known kind but no exact evidence-support ceremony', () => {
     expect(() => parseClippyDraft(JSON.stringify({ ...validDraft, kind: 'guess' })))
       .toThrow(/kind must be one of/)
-    expect(() => parseClippyDraft(JSON.stringify({ ...validDraft, support: [] })))
-      .toThrow(/one or two strings/)
-    expect(() => parseClippyDraft(JSON.stringify({ ...validDraft, support: ['too short'] })))
-      .toThrow(/12-240 characters/)
+    expect(parseClippyDraft(JSON.stringify({ ...validDraft, support: [] }))).toMatchObject({
+      ...validDraft,
+      statement: validDraft.statement.slice(0, -1),
+    })
   })
 })

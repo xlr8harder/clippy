@@ -57,6 +57,20 @@ describe('operational fallback', () => {
     }))).toBe(`your ${label} is still running`)
   })
 
+  it('finds the actual command inside generic bash and nested tool arguments', () => {
+    expect(operationalFallbackStatement(evidence({
+      name: 'bash',
+      arguments: '{"input":{"command":"corepack pnpm test"}}',
+      outcome: 'success',
+      resultExcerpt: 'Test Files 8 passed (8)\nTests 44 passed (44)',
+    }))).toBe('your latest test run reported 44 passed')
+    expect(operationalFallbackStatement(evidence({
+      name: 'bash',
+      arguments: '{"request":{"argv":["git","push","origin","main"]}}',
+      outcome: 'success',
+    }))).toBe('your latest git push completed successfully')
+  })
+
   it('sanitizes unrecognized tool names before display', () => {
     expect(operationalFallbackStatement(evidence({
       name: '<script>alert(1)</script> deploy_prod', arguments: '', outcome: 'success',

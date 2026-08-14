@@ -22,45 +22,33 @@ const STATEMENT_KIND_SET = new Set<string>(STATEMENT_KINDS)
 
 export interface ClippyDraft {
   readonly kind: StatementKind
-  readonly support: readonly [string] | readonly [string, string]
   readonly statement: string
 }
 
 export const OFFICE_TASKS = Object.freeze(Object.keys(OFFICE_OFFERS) as OfficeTask[])
 const MAX_STATEMENT_CHARS = 140
-const MIN_SUPPORT_CHARS = 12
-const MAX_SUPPORT_CHARS = 240
 
 function plainRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-/** Parse one exact model draft. Malformed output fails closed. */
+function unwrapJson(raw: string): string {
+  const trimmed = raw.trim()
+  const fenced = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/iu)
+  return fenced?.[1] ?? trimmed
+}
+
+/** Parse one short model draft while tolerating harmless legacy fields. */
 export function parseClippyDraft(raw: string): ClippyDraft {
   let parsed: unknown
   try {
-    parsed = JSON.parse(raw)
+    parsed = JSON.parse(unwrapJson(raw))
   } catch (error: unknown) {
     throw new Error('Clippy model output is not valid JSON', { cause: error })
   }
   if (!plainRecord(parsed)) throw new Error('Clippy model output must be a JSON object')
-  const keys = Object.keys(parsed).sort()
-  if (keys.length !== 3 || keys[0] !== 'kind' || keys[1] !== 'statement' || keys[2] !== 'support') {
-    throw new Error('Clippy model output must contain exactly kind, support, and statement')
-  }
   if (typeof parsed.kind !== 'string' || !STATEMENT_KIND_SET.has(parsed.kind)) {
     throw new Error(`Clippy kind must be one of: ${STATEMENT_KINDS.join(', ')}`)
-  }
-  if (!Array.isArray(parsed.support) || parsed.support.length < 1 || parsed.support.length > 2
-    || parsed.support.some(excerpt => typeof excerpt !== 'string')) {
-    throw new Error('Clippy support must contain one or two strings')
-  }
-  const support = parsed.support.map(excerpt => (excerpt as string).replace(/\s+/gu, ' ').trim())
-  if (support.some(excerpt => excerpt.length < MIN_SUPPORT_CHARS || excerpt.length > MAX_SUPPORT_CHARS)) {
-    throw new Error(`Clippy support excerpts must contain ${MIN_SUPPORT_CHARS}-${MAX_SUPPORT_CHARS} characters`)
-  }
-  if (new Set(support).size !== support.length) {
-    throw new Error('Clippy support excerpts must be distinct')
   }
   if (typeof parsed.statement !== 'string') throw new Error('Clippy statement must be a string')
   let statement = parsed.statement.replace(/\s+/gu, ' ').trim()
@@ -73,7 +61,6 @@ export function parseClippyDraft(raw: string): ClippyDraft {
   }
   return {
     kind: parsed.kind as StatementKind,
-    support: support as unknown as readonly [string] | readonly [string, string],
     statement,
   }
 }

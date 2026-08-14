@@ -8,10 +8,10 @@ Clippy animates once when the agent state changes (`Thinking`, `Writing`, `Searc
 
 ## Install
 
-Download `dsh-clippy-0.1.4.tgz` from the GitHub release, then use Dsh's supported profile installer:
+Download `dsh-clippy-0.1.5.tgz` from the GitHub release, then use Dsh's supported profile installer:
 
 ```sh
-dsh plugin --profile web add ./dsh-clippy-0.1.4.tgz
+dsh plugin --profile web add ./dsh-clippy-0.1.5.tgz
 dsh --profile web
 ```
 
@@ -35,7 +35,7 @@ Clippy moves automatically with the current session. Generated balloons remain v
 /clippy
 ```
 
-Clippy uses the strongest evidence-backed level available: brief diagnosis, salient observation, or short workflow fallback. Hidden support excerpts are validated before display. A rejected draft gets one lower-confidence retry; after that Clippy reports the latest structured test, file, or tool fact before resorting to a generic line. Office offers are uniformly random and do not repeat among the four most recent offers.
+Clippy uses the strongest available conclusion: brief diagnosis, salient observation, or short workflow fallback. A usable short draft is displayed without an exact-quotation ceremony; malformed or timed-out output gets one lower-confidence retry. After that Clippy reports the latest structured test, file, or tool fact before resorting to a generic line. Office offers are uniformly random and do not repeat among the four most recent offers.
 
 ## Develop
 

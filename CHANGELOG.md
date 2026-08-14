@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.5 - 2026-08-14
+
+- Accept usable short drafts without exact evidence excerpts; tolerate fenced JSON and harmless legacy fields instead of needlessly falling back.
+- Prefer the established mistake over a literal repair or passing-test summary, while retaining the diagnosis/observation/workflow confidence ladder.
+- Give the primary high-reasoning attempt 2,048 tokens/60 seconds and the retry 2,048 tokens/120 seconds; log sanitized failure categories for degraded paths.
+- Recognize commands nested inside generic `bash` arguments and extract test results from their output.
+- Bypass clippy.js's non-cancellable active queue for state animations and balloons, fixing later `/clippy` messages that remained stuck behind an animation.
+- Play one activity at a time, retain only the newest pending state, then return to authentic idle; preserve and replay speech across focus changes.
+
 ## 0.1.4 - 2026-08-14
 
 - Preserve the live session's reasoning effort. Give a high-reasoning primary attempt 3,072 tokens/90 seconds and its simpler lower-tier retry 2,048 tokens/60 seconds.

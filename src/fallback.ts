@@ -21,15 +21,44 @@ const WAITABLE_OPERATIONS = [
   { label: 'upload', pattern: /\b(?:upload|rsync|rclone\s+(?:copy|sync)|aws\s+s3\s+cp)\b/iu },
 ] as const
 
+const COMMAND_KEYS = ['cmd', 'command', 'script', 'shell', 'input'] as const
+const COMMAND_LIST_KEYS = ['argv', 'args', 'commands'] as const
+
+function commandFromValue(value: unknown, depth = 0): string | undefined {
+  if (depth > 3 || value === null || typeof value !== 'object') return undefined
+  if (Array.isArray(value)) {
+    if (value.length > 0 && value.every(part => typeof part === 'string')) return value.join(' ')
+    for (const nested of value) {
+      const command = commandFromValue(nested, depth + 1)
+      if (command !== undefined) return command
+    }
+    return undefined
+  }
+  const record = value as Record<string, unknown>
+  for (const key of COMMAND_KEYS) {
+    const candidate = record[key]
+    if (typeof candidate === 'string' && candidate.trim() !== '') return candidate
+  }
+  for (const key of COMMAND_LIST_KEYS) {
+    const candidate = record[key]
+    if (Array.isArray(candidate) && candidate.length > 0 && candidate.every(part => typeof part === 'string')) {
+      return candidate.join(' ')
+    }
+  }
+  for (const nested of Object.values(record)) {
+    const command = commandFromValue(nested, depth + 1)
+    if (command !== undefined) return command
+  }
+  return undefined
+}
+
 function shellCommand(tool: ClippyToolEvidence): string | undefined {
   if (!SHELL_TOOL.test(tool.name) && !/["'](?:cmd|command)["']\s*:/iu.test(tool.arguments)) return undefined
   try {
     const parsed = JSON.parse(tool.arguments) as unknown
-    if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
-      const record = parsed as Record<string, unknown>
-      const command = record.cmd ?? record.command
-      if (typeof command === 'string') return command
-    }
+    if (typeof parsed === 'string') return parsed
+    const command = commandFromValue(parsed)
+    if (command !== undefined) return command
   } catch {
     // Some Dsh tools expose the command as plain text rather than JSON.
   }
@@ -66,10 +95,12 @@ function updatedFilename(tool: ClippyToolEvidence): string | undefined {
 }
 
 function testResult(tool: ClippyToolEvidence): string | undefined {
-  if (!/test/iu.test(tool.name) || tool.resultExcerpt === undefined) return undefined
-  const failed = tool.resultExcerpt.match(/\b(\d+)\s+(?:tests?\s+)?failed\b/iu)?.[1]
+  if ((waitableLabel(tool) !== 'test run' && !/test/iu.test(tool.name)) || tool.resultExcerpt === undefined) return undefined
+  const failed = tool.resultExcerpt.match(/\btests?\s+(\d+)\s+failed\b/iu)?.[1]
+    ?? tool.resultExcerpt.match(/\b(\d+)\s+(?:tests?\s+)?failed\b/iu)?.[1]
   if (failed !== undefined) return `your latest test run reported ${failed} failed`
-  const passed = tool.resultExcerpt.match(/\b(\d+)\s+(?:tests?\s+)?passed\b/iu)?.[1]
+  const passed = tool.resultExcerpt.match(/\btests?\s+(\d+)\s+passed\b/iu)?.[1]
+    ?? tool.resultExcerpt.match(/\b(\d+)\s+(?:tests?\s+)?passed\b/iu)?.[1]
   if (passed !== undefined) return `your latest test run reported ${passed} passed`
   return undefined
 }
