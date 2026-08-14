@@ -1,0 +1,13 @@
+node_modules/
+lib/
+*.tgz
+release/
+.DS_Store
+
+# Original Microsoft Agent/Office Assistant binaries are kept only as local
+# research material. Their provenance is documented, but they are not
+# redistributed by this repository.
+research/originals/*.ACT
+research/originals/*.ACS
+research/originals/*.act
+research/originals/*.acs

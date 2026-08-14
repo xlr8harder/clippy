@@ -1,0 +1,5 @@
+# Install both halves of the plugin in a Dsh web profile. The host half is a
+# deliberate no-op; the browser half is discovered through package metadata.
+- insert:
+    - id: ui-clippy
+      name: dsh-clippy
