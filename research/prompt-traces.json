@@ -1,0 +1,114 @@
+[
+  {
+    "id": "distributed-timeouts",
+    "evidence": {
+      "cwd": "/work/dispatch",
+      "activityMinutes": 47,
+      "recentMessages": [
+        { "role": "user", "text": "The same job is occasionally delivered twice, but only under load. Find the cause." },
+        { "role": "assistant", "text": "I am comparing the queue lease, worker acknowledgement, and gateway retry paths." }
+      ],
+      "recentTools": [
+        { "name": "read_config", "arguments": "queue-worker.yaml", "outcome": "success", "resultExcerpt": "visibility_timeout: 3s; acknowledgement_deadline: 5s" },
+        { "name": "search_logs", "arguments": "job_id=81f retry OR ack", "outcome": "success", "resultExcerpt": "12:04:03.000 lease expired; 12:04:03.014 redelivered; 12:04:04.721 ack accepted by original worker" },
+        { "name": "git_bisect", "arguments": "release/2026-07..HEAD", "outcome": "success", "resultExcerpt": "No behavior change across tested revisions" }
+      ],
+      "recentErrors": [],
+      "omittedEarlierContext": false,
+      "recentClippyOffers": ["memo"]
+    }
+  },
+  {
+    "id": "hover-tooltip",
+    "evidence": {
+      "cwd": "/work/dashboard",
+      "activityMinutes": 23,
+      "recentMessages": [
+        { "role": "user", "text": "The help tooltip flickers whenever I move from the button into the tooltip itself." },
+        { "role": "assistant", "text": "I added event logging around the trigger and floating panel." }
+      ],
+      "recentTools": [
+        { "name": "browser_events", "arguments": "record pointer transitions", "outcome": "success", "resultExcerpt": "pointerenter button; pointerleave button; close tooltip; pointerenter tooltip after unmount" },
+        { "name": "read_file", "arguments": "Tooltip.tsx", "outcome": "success", "resultExcerpt": "onPointerLeave={() => setOpen(false)} is attached only to the button" }
+      ],
+      "recentErrors": [],
+      "omittedEarlierContext": false,
+      "recentClippyOffers": ["presentation", "memo"]
+    }
+  },
+  {
+    "id": "benchmark-optimization",
+    "evidence": {
+      "cwd": "/work/parser",
+      "activityMinutes": 61,
+      "recentMessages": [
+        { "role": "user", "text": "Check whether the new parser cache actually made imports faster." },
+        { "role": "assistant", "text": "I ran both revisions with warm-up, fixed inputs, and five samples." }
+      ],
+      "recentTools": [
+        { "name": "benchmark", "arguments": "main --samples 5", "outcome": "success", "resultExcerpt": "median 218ms; p95 224ms; peak RSS 141MB" },
+        { "name": "benchmark", "arguments": "parser-cache --samples 5", "outcome": "success", "resultExcerpt": "median 219ms; p95 226ms; peak RSS 188MB" },
+        { "name": "profile", "arguments": "parser-cache", "outcome": "success", "resultExcerpt": "78% of time remains in schema validation after cache lookup" }
+      ],
+      "recentErrors": [],
+      "omittedEarlierContext": false,
+      "recentClippyOffers": ["chart", "spreadsheet"]
+    }
+  },
+  {
+    "id": "citation-draft",
+    "evidence": {
+      "cwd": "/work/paper",
+      "activityMinutes": 36,
+      "recentMessages": [
+        { "role": "user", "text": "Tighten the claim that this intervention improves long-term retention." },
+        { "role": "assistant", "text": "The cited studies measure immediate recall and one-week recall, not retention beyond one week." },
+        { "role": "user", "text": "Can we keep the phrase long-term somehow?" }
+      ],
+      "recentTools": [
+        { "name": "search_papers", "arguments": "intervention delayed retention longitudinal", "outcome": "success", "resultExcerpt": "All three matching trials report outcomes at 7 days or earlier" },
+        { "name": "read_citation", "arguments": "doi:10.1000/example", "outcome": "success", "resultExcerpt": "Limitations: durability beyond the one-week follow-up is unknown" }
+      ],
+      "recentErrors": [],
+      "omittedEarlierContext": false,
+      "recentClippyOffers": ["report"]
+    }
+  },
+  {
+    "id": "deployment-environment",
+    "evidence": {
+      "cwd": "/work/storefront",
+      "activityMinutes": 29,
+      "recentMessages": [
+        { "role": "user", "text": "Checkout works locally but production sends every payment to the test account." },
+        { "role": "assistant", "text": "I am tracing which environment variables reach the production container." }
+      ],
+      "recentTools": [
+        { "name": "inspect_deployment", "arguments": "storefront-production", "outcome": "success", "resultExcerpt": "PAYMENT_MODE=test; secret reference: payments/staging" },
+        { "name": "read_manifest", "arguments": "deploy/production.yaml", "outcome": "success", "resultExcerpt": "envFrom: payments-staging; metadata.name: storefront-production" }
+      ],
+      "recentErrors": ["PAYMENT_ACCOUNT_MISMATCH: expected live account, received test account"],
+      "omittedEarlierContext": false,
+      "recentClippyOffers": ["memo", "report", "presentation"]
+    }
+  },
+  {
+    "id": "release-package",
+    "evidence": {
+      "cwd": "/work/widget",
+      "activityMinutes": 18,
+      "recentMessages": [
+        { "role": "user", "text": "Why did the npm package jump from 180 KB to 34 MB right before release?" },
+        { "role": "assistant", "text": "I am comparing the packed file list with the prior release." }
+      ],
+      "recentTools": [
+        { "name": "npm_pack", "arguments": "--dry-run", "outcome": "success", "resultExcerpt": "package size 34.1 MB; 128 files; research/session-capture.bin 33.8 MB" },
+        { "name": "read_file", "arguments": "package.json", "outcome": "success", "resultExcerpt": "No files allowlist is present" },
+        { "name": "read_file", "arguments": ".npmignore", "outcome": "error", "resultExcerpt": "File not found" }
+      ],
+      "recentErrors": ["ENOENT: .npmignore does not exist"],
+      "omittedEarlierContext": false,
+      "recentClippyOffers": ["newsletter", "memo"]
+    }
+  }
+]

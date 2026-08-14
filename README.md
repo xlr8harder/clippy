@@ -2,16 +2,16 @@
 
 The earnest Microsoft Office Assistant, watching your [DeepSeek Harness](https://github.com/deepseek-ai/DeepSeek-Harness) session with alarming technical accuracy and offering completely misplaced Office help.
 
-![Clippy offering to turn a distributed-systems debugging session into a memo](docs/clippy-live-demo.png)
+![Clippy turning a distributed-systems diagnosis into a meeting agenda](docs/clippy-live-demo.png)
 
 Clippy animates with the agent state (`Thinking`, `Writing`, `Searching`, `GetAttention`, `Congratulate`, and `Alert`). Idle bubbles appear after a randomized 8–20 minute delay. Recent conversation, tool, error, and timing evidence is bounded; private reasoning is excluded.
 
 ## Install
 
-Download `dsh-clippy-0.1.0.tgz` from the GitHub release, then use Dsh's supported profile installer:
+Download `dsh-clippy-0.1.1.tgz` from the GitHub release, then use Dsh's supported profile installer:
 
 ```sh
-dsh plugin --profile web add ./dsh-clippy-0.1.0.tgz
+dsh plugin --profile web add ./dsh-clippy-0.1.1.tgz
 dsh --profile web
 ```
 
@@ -29,7 +29,7 @@ dsh plugin --profile web add link:/absolute/path/to/clippy
 
 ## Use
 
-Clippy moves automatically with the current session. Trigger an immediate observation for testing:
+Clippy moves automatically with the current session. Trigger an immediate conclusion for testing:
 
 ```text
 /clippy

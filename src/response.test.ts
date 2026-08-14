@@ -4,26 +4,26 @@ import { chooseOfficeTask, parseClippyDraft, renderClippyResponse } from './resp
 describe('Clippy response boundary', () => {
   it('accepts an exact taxonomy response and renders the fixed cadence', () => {
     const draft = parseClippyDraft(JSON.stringify({
-      observation: 'you have been bisecting a duplicate-delivery race for 47 minutes.',
+      conclusion: 'you made the queue lease shorter than the acknowledgement deadline.',
       officeTasks: ['resume', 'spreadsheet', 'fax'],
     }))
     expect(renderClippyResponse({ ...draft, officeTask: draft.officeTasks[0] })).toBe(
-      'It looks like you have been bisecting a duplicate-delivery race for 47 minutes. Would you like help drafting a résumé?',
+      'It looks like you made the queue lease shorter than the acknowledgement deadline. Would you like help drafting a résumé?',
     )
   })
 
   it('rejects prose wrappers, unknown fields, and invented taxonomy values', () => {
-    expect(() => parseClippyDraft('```json\n{"observation":"you are writing","officeTasks":["memo","fax","chart"]}\n```'))
+    expect(() => parseClippyDraft('```json\n{"conclusion":"you chose the wrong format","officeTasks":["memo","fax","chart"]}\n```'))
       .toThrow(/not valid JSON/)
-    expect(() => parseClippyDraft('{"observation":"you are writing","officeTasks":["memo","fax","chart"],"joke":true}'))
-      .toThrow(/exactly observation and officeTasks/)
-    expect(() => parseClippyDraft('{"observation":"you are writing","officeTasks":["debugger","fax","chart"]}'))
+    expect(() => parseClippyDraft('{"conclusion":"you chose the wrong format","officeTasks":["memo","fax","chart"],"joke":true}'))
+      .toThrow(/exactly conclusion and officeTasks/)
+    expect(() => parseClippyDraft('{"conclusion":"you chose the wrong format","officeTasks":["debugger","fax","chart"]}'))
       .toThrow(/officeTasks must be three values/)
   })
 
   it('rejects observer language instead of calling the person you', () => {
     expect(() => parseClippyDraft(JSON.stringify({
-      observation: 'the user is writing a distributed systems incident analysis',
+      conclusion: 'the user configured incompatible service timeouts',
       officeTasks: ['memo', 'fax', 'chart'],
     }))).toThrow(/address the person directly and begin with you/)
   })
@@ -39,8 +39,15 @@ describe('Clippy response boundary', () => {
 
   it('requires three distinct model-ranked alternatives', () => {
     expect(() => parseClippyDraft(JSON.stringify({
-      observation: 'you are comparing latency figures',
+      conclusion: 'you made the cache slower than the original implementation',
       officeTasks: ['spreadsheet', 'spreadsheet', 'chart'],
     }))).toThrow(/three distinct values/)
+  })
+
+  it('rejects long conclusions even when the model follows the JSON schema', () => {
+    expect(() => parseClippyDraft(JSON.stringify({
+      conclusion: `you ${'made this conclusion unnecessarily long '.repeat(5)}`,
+      officeTasks: ['memo', 'fax', 'chart'],
+    }))).toThrow(/1-140 characters/)
   })
 })

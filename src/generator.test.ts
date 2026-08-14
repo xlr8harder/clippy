@@ -26,6 +26,13 @@ function fakeAgent(): Agent {
 }
 
 describe('generateClippyResponse', () => {
+  it('asks for a compact conclusion rather than an activity description', () => {
+    expect(CLIPPY_SYSTEM_PROMPT).toContain('what the evidence establishes')
+    expect(CLIPPY_SYSTEM_PROMPT).toContain('{"conclusion"')
+    expect(CLIPPY_SYSTEM_PROMPT).toContain('Use simple past by default')
+    expect(CLIPPY_SYSTEM_PROMPT).not.toContain('describe what the person')
+  })
+
   it('makes one isolated bounded model call and renders its validated draft', async () => {
     let captured: GenerateOptions | undefined
     const chunks: StreamChunk[] = [
@@ -33,7 +40,7 @@ describe('generateClippyResponse', () => {
       {
         type: 'text-delta',
         index: 0,
-        text: '{"observation":"you are bisecting a duplicate-delivery bug across queue workers","officeTasks":["resume","spreadsheet","fax"]}',
+        text: '{"conclusion":"you made the queue lease shorter than the acknowledgement deadline","officeTasks":["resume","spreadsheet","fax"]}',
       },
       { type: 'finish', reason: { kind: 'stop' } },
     ]
@@ -49,7 +56,7 @@ describe('generateClippyResponse', () => {
     const text = await generateClippyResponse(ctx, fakeAgent(), new AbortController().signal, () => 0)
 
     expect(text).toBe(
-      'It looks like you are bisecting a duplicate-delivery bug across queue workers. Would you like help drafting a résumé?',
+      'It looks like you made the queue lease shorter than the acknowledgement deadline. Would you like help drafting a résumé?',
     )
     expect(captured).toMatchObject({
       provider: 'openrouter',
@@ -74,7 +81,7 @@ describe('generateClippyResponse', () => {
       {
         type: 'text-delta',
         index: 0,
-        text: '{"observation":"you are diagnosing a queue race","officeTasks":["memo","letter","fax"]}',
+        text: '{"conclusion":"you made the queue lease expire before acknowledgement","officeTasks":["memo","letter","fax"]}',
       },
       { type: 'finish', reason: { kind: 'stop' } },
     ]

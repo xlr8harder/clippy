@@ -18,13 +18,13 @@ export const OFFICE_OFFERS = {
 export type OfficeTask = keyof typeof OFFICE_OFFERS
 
 export interface ClippyDraft {
-  readonly observation: string
+  readonly conclusion: string
   readonly officeTasks: readonly [OfficeTask, OfficeTask, OfficeTask]
 }
 
 export const OFFICE_TASKS = Object.freeze(Object.keys(OFFICE_OFFERS) as OfficeTask[])
 const OFFICE_TASK_SET = new Set<string>(OFFICE_TASKS)
-const MAX_OBSERVATION_CHARS = 360
+const MAX_CONCLUSION_CHARS = 140
 
 function plainRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -40,17 +40,17 @@ export function parseClippyDraft(raw: string): ClippyDraft {
   }
   if (!plainRecord(parsed)) throw new Error('Clippy model output must be a JSON object')
   const keys = Object.keys(parsed).sort()
-  if (keys.length !== 2 || keys[0] !== 'observation' || keys[1] !== 'officeTasks') {
-    throw new Error('Clippy model output must contain exactly observation and officeTasks')
+  if (keys.length !== 2 || keys[0] !== 'conclusion' || keys[1] !== 'officeTasks') {
+    throw new Error('Clippy model output must contain exactly conclusion and officeTasks')
   }
-  if (typeof parsed.observation !== 'string') throw new Error('Clippy observation must be a string')
-  let observation = parsed.observation.replace(/\s+/gu, ' ').trim()
-  observation = observation.replace(/[.!?]+$/u, '')
-  if (observation.length === 0 || observation.length > MAX_OBSERVATION_CHARS) {
-    throw new Error(`Clippy observation must contain 1-${MAX_OBSERVATION_CHARS} characters`)
+  if (typeof parsed.conclusion !== 'string') throw new Error('Clippy conclusion must be a string')
+  let conclusion = parsed.conclusion.replace(/\s+/gu, ' ').trim()
+  conclusion = conclusion.replace(/[.!?]+$/u, '')
+  if (conclusion.length === 0 || conclusion.length > MAX_CONCLUSION_CHARS) {
+    throw new Error(`Clippy conclusion must contain 1-${MAX_CONCLUSION_CHARS} characters`)
   }
-  if (!/^you(?:\s|$)/u.test(observation)) {
-    throw new Error('Clippy observation must address the person directly and begin with you')
+  if (!/^you(?:\s|$)/u.test(conclusion)) {
+    throw new Error('Clippy conclusion must address the person directly and begin with you')
   }
   if (!Array.isArray(parsed.officeTasks) || parsed.officeTasks.length !== 3
     || parsed.officeTasks.some(task => typeof task !== 'string' || !OFFICE_TASK_SET.has(task))) {
@@ -60,7 +60,7 @@ export function parseClippyDraft(raw: string): ClippyDraft {
     throw new Error('Clippy officeTasks must contain three distinct values')
   }
   return {
-    observation,
+    conclusion,
     officeTasks: parsed.officeTasks as unknown as readonly [OfficeTask, OfficeTask, OfficeTask],
   }
 }
@@ -87,6 +87,6 @@ export function chooseOfficeTask(
   return entireTaxonomy[Math.floor(fallbackRoll * entireTaxonomy.length)]!
 }
 
-export function renderClippyResponse(draft: Pick<ClippyDraft, 'observation'> & { readonly officeTask: OfficeTask }): string {
-  return `It looks like ${draft.observation}. Would you like help ${OFFICE_OFFERS[draft.officeTask]}?`
+export function renderClippyResponse(draft: Pick<ClippyDraft, 'conclusion'> & { readonly officeTask: OfficeTask }): string {
+  return `It looks like ${draft.conclusion}. Would you like help ${OFFICE_OFFERS[draft.officeTask]}?`
 }

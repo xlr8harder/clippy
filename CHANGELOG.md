@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.1 - 2026-08-14
+
+- Replace literal activity summaries with short, evidence-grounded technical conclusions.
+- Add reusable prompt-comparison traces covering debugging, UI, benchmarks, research, deployment, and packaging.
+
 ## 0.1.0 - 2026-08-14
 
 - Add the authentic animated Clippy companion to the Dsh web client.
