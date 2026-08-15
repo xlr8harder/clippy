@@ -3,7 +3,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-agent'
 import { SessionId } from '@deepseek-ai/dsh-session'
-import { generateClippyResponse } from './generator.ts'
+import { generateClippyResponse, type ClippyModelRouteOverride } from './generator.ts'
 
 export const CLIPPY_GENERATE_PATH = '/api/clippy/generate'
 const MAX_BODY_BYTES = 4_096
@@ -71,7 +71,7 @@ function sessionIdFrom(body: unknown): string {
   return value
 }
 
-export function makeClippyGenerateHandler(ctx: Context) {
+export function makeClippyGenerateHandler(ctx: Context, routeOverride: ClippyModelRouteOverride = {}) {
   return async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
     try {
       if (req.method !== 'POST') throw new HttpFailure(405, 'method must be POST')
@@ -90,7 +90,7 @@ export function makeClippyGenerateHandler(ctx: Context) {
         }
       })
       try {
-        const text = await generateClippyResponse(ctx, agent, controller.signal)
+        const text = await generateClippyResponse(ctx, agent, controller.signal, Math.random, routeOverride)
         writeJson(res, 200, { text })
       } finally {
         req.off('aborted', abortRequest)

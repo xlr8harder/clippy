@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
+  animationStateAction,
   clearPendingActivity,
   completeActivityPlayback,
   EMPTY_ACTIVITY_PLAYBACK,
   pageIsActive,
+  pendingSpeechToReplay,
   requestActivityPlayback,
 } from './playback.ts'
 
@@ -39,5 +41,16 @@ describe('activity playback', () => {
     expect(pageIsActive('visible', true)).toBe(true)
     expect(pageIsActive('visible', false)).toBe(false)
     expect(pageIsActive('hidden', true)).toBe(false)
+  })
+
+  it('exits a waiting animation through its authored exit branch', () => {
+    expect(animationStateAction(1)).toBe('request-exit')
+    expect(animationStateAction(0)).toBe('complete')
+    expect(animationStateAction(2)).toBe('continue')
+  })
+
+  it('does not replay an already visible balloon after focus returns', () => {
+    expect(pendingSpeechToReplay('active balloon', 'active balloon')).toBeUndefined()
+    expect(pendingSpeechToReplay(undefined, 'arrived while hidden')).toBe('arrived while hidden')
   })
 })

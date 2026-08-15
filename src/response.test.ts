@@ -25,7 +25,28 @@ describe('Clippy response boundary', () => {
     expect(() => parseClippyDraft(JSON.stringify({
       ...validDraft,
       statement: 'the user configured incompatible service timeouts',
-    }))).toThrow(/address the person directly and begin with you/)
+    }))).toThrow(/begin with you, or your plus a subject/)
+  })
+
+  it('allows an open your subject only for observations', () => {
+    expect(parseClippyDraft(JSON.stringify({
+      kind: 'observation',
+      statement: 'your server returned an empty response after the deployment',
+    }))).toMatchObject({
+      kind: 'observation',
+      statement: 'your server returned an empty response after the deployment',
+    })
+    expect(() => parseClippyDraft(JSON.stringify({
+      kind: 'diagnosis',
+      statement: 'your server omitted the commit heartbeat',
+    }))).toThrow(/your plus a subject/)
+    expect(parseClippyDraft(JSON.stringify({
+      kind: 'observation',
+      statement: 'your election pipeline left node zero as leader',
+    }))).toMatchObject({
+      kind: 'observation',
+      statement: 'your election pipeline left node zero as leader',
+    })
   })
 
   it('chooses uniformly from the full taxonomy without a recent repeat', () => {

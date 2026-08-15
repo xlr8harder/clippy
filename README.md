@@ -8,10 +8,10 @@ Clippy animates once when the agent state changes (`Thinking`, `Writing`, `Searc
 
 ## Install
 
-Download `dsh-clippy-0.1.5.tgz` from the GitHub release, then use Dsh's supported profile installer:
+Download `dsh-clippy-0.1.6.tgz` from the GitHub release, then use Dsh's supported profile installer:
 
 ```sh
-dsh plugin --profile web add ./dsh-clippy-0.1.5.tgz
+dsh plugin --profile web add ./dsh-clippy-0.1.6.tgz
 dsh --profile web
 ```
 
@@ -35,7 +35,19 @@ Clippy moves automatically with the current session. Generated balloons remain v
 /clippy
 ```
 
-Clippy uses the strongest available conclusion: brief diagnosis, salient observation, or short workflow fallback. A usable short draft is displayed without an exact-quotation ceremony; malformed or timed-out output gets one lower-confidence retry. After that Clippy reports the latest structured test, file, or tool fact before resorting to a generic line. Office offers are uniformly random and do not repeat among the four most recent offers.
+Clippy uses the strongest available conclusion: brief diagnosis, salient observation, or short workflow fallback. A usable short draft is displayed without an exact-quotation ceremony; malformed, exhausted, or timed-out output gets one observation/workflow retry. When the exact model route advertises a `low` reasoning effort, Clippy uses it for that retry; other models keep their original effort. After that Clippy reports the latest structured test, file, or tool fact before resorting to a generic line. Office offers are uniformly random and do not repeat among the four most recent offers.
+
+Clippy normally follows the session model. To use a dedicated Dsh model route—such as an OpenRouter preset that pins an upstream provider—override the installed plugin in `$DSH_HOME/profiles/web/cordis.patch.yml`:
+
+```yaml
+- id: ui-clippy
+  config:
+    provider: openrouter
+    model: '@preset/dsh-clippy-v4-flash-official'
+    reasoningEffort: high
+```
+
+The provider and model must already be configured in Dsh. See [OpenRouter presets](https://openrouter.ai/docs/guides/features/presets) for provider-specific routing.
 
 ## Develop
 

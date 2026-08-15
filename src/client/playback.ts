@@ -14,6 +14,23 @@ export interface ActivityPlaybackTransition {
 
 export const EMPTY_ACTIVITY_PLAYBACK: ActivityPlaybackState = Object.freeze({})
 
+export type AnimationStateAction = 'request-exit' | 'complete' | 'continue'
+
+/** Exit cleanly at an animation's waiting pose, then finish at its exit pose. */
+export function animationStateAction(state: number): AnimationStateAction {
+  if (state === 1) return 'request-exit'
+  if (state === 0) return 'complete'
+  return 'continue'
+}
+
+/** Replay only speech that first arrived hidden, never an already visible balloon. */
+export function pendingSpeechToReplay(
+  activeSpeech: string | undefined,
+  pendingSpeech: string | undefined,
+): string | undefined {
+  return activeSpeech === undefined ? pendingSpeech : undefined
+}
+
 /** Start immediately when idle; otherwise retain only the newest requested state. */
 export function requestActivityPlayback(
   state: ActivityPlaybackState,

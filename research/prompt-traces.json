@@ -1,5 +1,27 @@
 [
   {
+    "id": "failed-replication",
+    "expectedKind": "observation",
+    "evidence": {
+      "cwd": "/work/distkv",
+      "activityMinutes": 13,
+      "recentMessages": [
+        { "role": "user", "text": "please create a simple demo distributed system using TDD" },
+        { "role": "assistant", "text": "Several failures to debug. Let me look closely:" }
+      ],
+      "recentTools": [
+        {
+          "name": "bash",
+          "arguments": "{\"command\":\"python -m pytest tests/test_replication.py::test_committed_write_reaches_all_nodes -q\",\"description\":\"Debug replication test\"}",
+          "outcome": "success",
+          "resultExcerpt": "FAILED test_committed_write_reaches_all_nodes: cluster.node(0).set(\"color\", \"green\"); assert cluster.node(1).get(\"color\") == \"green\"; AssertionError: assert None == 'green'; 1 failed in 0.01s"
+        }
+      ],
+      "recentErrors": [],
+      "omittedEarlierContext": false
+    }
+  },
+  {
     "id": "distributed-timeouts",
     "expectedKind": "diagnosis",
     "evidence": {

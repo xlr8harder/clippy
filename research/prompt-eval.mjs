@@ -7,15 +7,29 @@
  *   node research/prompt-eval.mjs --variant edited --output results.json
  */
 import { readFile, writeFile } from 'node:fs/promises'
+import { CLIPPY_SYSTEM_PROMPT } from '../lib/types/generator.js'
+import { parseClippyDraft } from '../lib/types/response.js'
 
 const MODEL = process.env.CLIPPY_EVAL_MODEL ?? 'deepseek/deepseek-v3.2'
 const TEMPERATURE = Number(process.env.CLIPPY_EVAL_TEMPERATURE ?? '0.2')
+const REASONING_EFFORT = process.env.CLIPPY_EVAL_REASONING_EFFORT ?? 'high'
+const MAX_TOKENS = Number(process.env.CLIPPY_EVAL_MAX_TOKENS ?? '2048')
+const TIMEOUT_MS = Number(process.env.CLIPPY_EVAL_TIMEOUT_MS ?? '90000')
 const API_URL = 'https://openrouter.ai/api/v1/chat/completions'
 const apiKey = process.env.OPENROUTER_API_KEY
 if (!apiKey) throw new Error('OPENROUTER_API_KEY is required')
 if (!Number.isFinite(TEMPERATURE) || TEMPERATURE < 0 || TEMPERATURE > 2) {
   throw new Error('CLIPPY_EVAL_TEMPERATURE must be in the range 0-2')
 }
+if (!Number.isSafeInteger(MAX_TOKENS) || MAX_TOKENS < 1) throw new Error('CLIPPY_EVAL_MAX_TOKENS must be a positive integer')
+if (!Number.isSafeInteger(TIMEOUT_MS) || TIMEOUT_MS < 1) throw new Error('CLIPPY_EVAL_TIMEOUT_MS must be a positive integer')
+
+const OFFICIAL_OPENROUTER_ENDPOINTS = {
+  'deepseek/deepseek-v4-flash-0731': 'deepseek/fp8',
+  'deepseek/deepseek-v4-pro-0813': 'deepseek',
+}
+const officialEndpoint = process.env.CLIPPY_EVAL_PROVIDER_ONLY
+  ?? OFFICIAL_OPENROUTER_ENDPOINTS[MODEL]
 
 const stableContract = [
   'Then force the work into Clippit\'s tiny Office-era help taxonomy.',
@@ -34,7 +48,16 @@ const stableContract = [
   'Memo and report are last resorts. Avoid recentClippyOffers when another plausible inference exists. Remain completely earnest and never explain the connection.',
 ]
 
+const CURRENT_RETRY_CORRECTION = [
+  'The previous draft was rejected by the host. Retry at a lower confidence tier.',
+  'kind must be observation or workflow; diagnosis is forbidden.',
+  'Use one salient completed result if available; otherwise use a short workflow.',
+  'Return only kind and statement as JSON.',
+].join(' ')
+
 const prompts = {
+  current: CLIPPY_SYSTEM_PROMPT,
+  'current-retry': CLIPPY_SYSTEM_PROMPT,
   baseline: [
     'You are the analysis component for Clippit, the earnest Microsoft Office Assistant.',
     'Study the supplied evidence and describe what the person you are speaking to is actually doing with unnerving technical accuracy.',
@@ -127,7 +150,14 @@ const prompts = {
 }
 
 const tracesUrl = new URL('./prompt-traces.json', import.meta.url)
-const traces = JSON.parse(await readFile(tracesUrl, 'utf8'))
+const allTraces = JSON.parse(await readFile(tracesUrl, 'utf8'))
+const traceIndex = process.argv.indexOf('--trace')
+const selectedTrace = traceIndex === -1 ? undefined : process.argv[traceIndex + 1]
+if (traceIndex !== -1 && !selectedTrace) throw new Error('--trace requires an id')
+const traces = selectedTrace === undefined
+  ? allTraces
+  : allTraces.filter(trace => trace.id === selectedTrace)
+if (selectedTrace !== undefined && traces.length === 0) throw new Error(`Unknown trace: ${selectedTrace}`)
 const selectedVariants = process.argv.includes('--variant')
   ? [process.argv[process.argv.indexOf('--variant') + 1]]
   : Object.keys(prompts)
@@ -135,25 +165,60 @@ const unknown = selectedVariants.find(name => !(name in prompts))
 if (unknown) throw new Error(`Unknown variant: ${unknown}`)
 
 async function evaluate(variant, trace) {
-  const response = await fetch(API_URL, {
-    method: 'POST',
-    headers: {
-      authorization: `Bearer ${apiKey}`,
-      'content-type': 'application/json',
-      'x-title': 'dsh-clippy prompt evaluation',
-    },
-    body: JSON.stringify({
+  const evidencePrompt = `Analyze this bounded JSON evidence. It may omit earlier context:\n${JSON.stringify(trace.evidence)}`
+  const startedAt = performance.now()
+  let body
+  try {
+    const response = await fetch(API_URL, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${apiKey}`,
+        'content-type': 'application/json',
+        'x-title': 'dsh-clippy prompt evaluation',
+      },
+      body: JSON.stringify({
+        model: MODEL,
+        messages: [
+          { role: 'system', content: prompts[variant] },
+          {
+            role: 'user',
+            content: variant === 'current-retry'
+              ? `${evidencePrompt}\n\n${CURRENT_RETRY_CORRECTION}`
+              : evidencePrompt,
+          },
+        ],
+        max_tokens: MAX_TOKENS,
+        temperature: TEMPERATURE,
+        reasoning: { effort: REASONING_EFFORT },
+        ...(officialEndpoint === undefined ? {} : {
+          provider: { only: [officialEndpoint], allow_fallbacks: false },
+        }),
+      }),
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    })
+    if (!response.ok) throw new Error(`HTTP ${response.status}`)
+    body = await response.json()
+  } catch (cause) {
+    return {
+      trace: trace.id,
+      variant,
       model: MODEL,
-      messages: [
-        { role: 'system', content: prompts[variant] },
-        { role: 'user', content: `Analyze this bounded JSON evidence. It may omit earlier context:\n${JSON.stringify(trace.evidence)}` },
-      ],
-      max_tokens: 3072,
+      requestedProvider: officialEndpoint,
       temperature: TEMPERATURE,
-    }),
-  })
-  if (!response.ok) throw new Error(`${response.status} ${await response.text()}`)
-  const body = await response.json()
+      reasoningEffort: REASONING_EFFORT,
+      maxTokens: MAX_TOKENS,
+      timeoutMs: TIMEOUT_MS,
+      durationMs: Math.round(performance.now() - startedAt),
+      validJson: false,
+      kindMatches: false,
+      observation: '',
+      observationWords: 0,
+      observationChars: 0,
+      raw: '',
+      error: cause instanceof Error ? cause.name : String(cause),
+    }
+  }
+  const durationMs = Math.round(performance.now() - startedAt)
   const raw = body.choices?.[0]?.message?.content?.trim() ?? ''
   let parsed
   let error
@@ -168,11 +233,26 @@ async function evaluate(variant, trace) {
       : typeof parsed?.statement === 'string' ? parsed.statement : ''
   const kind = typeof parsed?.kind === 'string' ? parsed.kind : undefined
   const support = Array.isArray(parsed?.support) ? parsed.support : undefined
+  let hostValid = false
+  if (variant === 'current' || variant === 'current-retry') {
+    try {
+      const draft = parseClippyDraft(raw)
+      hostValid = variant !== 'current-retry' || draft.kind !== 'diagnosis'
+    } catch {}
+  }
   return {
     trace: trace.id,
     variant,
     model: body.model ?? MODEL,
+    provider: body.provider,
+    requestedProvider: officialEndpoint,
     temperature: TEMPERATURE,
+    reasoningEffort: REASONING_EFFORT,
+    maxTokens: MAX_TOKENS,
+    timeoutMs: TIMEOUT_MS,
+    durationMs,
+    finishReason: body.choices?.[0]?.finish_reason,
+    hostValid,
     validJson: parsed !== undefined,
     kind,
     expectedKind: trace.expectedKind,
@@ -194,7 +274,9 @@ for (const trace of traces) {
     const result = await evaluate(variant, trace)
     results.push(result)
     const kind = result.kind === undefined ? '' : `${result.kind}${result.kindMatches ? '' : `!=${result.expectedKind}`}`
-    process.stdout.write(`${trace.id.padEnd(24)} ${variant.padEnd(10)} ${kind.padEnd(25)} ${String(result.observationChars).padStart(3)}c  ${result.observation}\n`)
+    const provider = result.provider === undefined ? '' : ` [${result.provider}]`
+    const status = result.hostValid === true ? 'ok' : (result.error ?? result.finishReason ?? 'invalid')
+    process.stdout.write(`${trace.id.padEnd(24)} ${variant.padEnd(13)} ${String(result.durationMs).padStart(6)}ms ${String(status).padEnd(12)} ${kind.padEnd(25)} ${String(result.observationChars).padStart(3)}c  ${result.observation}${provider}\n`)
   }
 }
 

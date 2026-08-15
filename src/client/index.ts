@@ -6,10 +6,12 @@ import { ACTIVITY_ANIMATION, activityInput, deriveActivity, type ClippyActivity 
 import { commandSpeechUpdate, type CommandSpeechCursor } from './command-speech.ts'
 import { chooseIdleFlourish, idleFlourishDelay, type IdleFlourish } from './idle.ts'
 import {
+  animationStateAction,
   clearPendingActivity,
   completeActivityPlayback,
   EMPTY_ACTIVITY_PLAYBACK,
   pageIsActive,
+  pendingSpeechToReplay,
   requestActivityPlayback,
   type ActivityPlaybackState,
   type PlayableActivity,
@@ -18,7 +20,7 @@ import {
 export const inject = ['sessions']
 
 const COMPLETE_RESET_MS = 5_500
-const ACTIVITY_TIMEOUT_MS = 5_000
+const ANIMATION_SAFETY_MS = 15_000
 const SPEECH_HOLD_MS = 15_000
 const AUTO_MIN_MS = 8 * 60_000
 const AUTO_MAX_MS = 20 * 60_000
@@ -78,6 +80,7 @@ export function apply(ctx: ClientContext): void {
     let lastIdleFlourish: IdleFlourish | undefined
     let activityPlayback: ActivityPlaybackState = EMPTY_ACTIVITY_PLAYBACK
     let activityGeneration = 0
+    let idleAnimationActive = false
 
     const clearTimers = (): void => {
       if (resetTimer !== undefined) window.clearTimeout(resetTimer)
@@ -108,6 +111,7 @@ export function apply(ctx: ClientContext): void {
       clearAnimationTimer()
       activityGeneration += 1
       activityPlayback = EMPTY_ACTIVITY_PLAYBACK
+      idleAnimationActive = false
       // clippyjs's public Queue cannot cancel its active item. Drive the
       // bundled animator directly so a stale queued action cannot block the
       // next state or speech balloon.
@@ -167,10 +171,18 @@ export function apply(ctx: ClientContext): void {
 
     const resumeIdle = (): void => {
       if (agent === undefined || activityPlayback.active !== undefined || speechTimer !== undefined
-        || !pageIsActive(document.visibilityState, document.hasFocus())) return
-      // stop() leaves clippyjs without queued work. show(true) is its public
-      // entry point for restarting the authentic idle loop.
-      agent.show(true)
+        || idleAnimationActive || !pageIsActive(document.visibilityState, document.hasFocus())) return
+      // clippy.js keeps the name of an exited idle animation, so show(true)
+      // mistakes its frozen final frame for a live idle loop. Start a fresh
+      // authentic idle animation explicitly instead.
+      activityGeneration += 1
+      clearAnimationTimer()
+      agent._queue.clear()
+      idleAnimationActive = agent._animator.showAnimation(
+        agent._getIdleAnimation(),
+        agent._onIdleComplete.bind(agent),
+      )
+      if (!idleAnimationActive) console.warn('[dsh-clippy] idle animation unavailable')
     }
 
     const beginActivity = (activity: PlayableActivity): void => {
@@ -179,6 +191,7 @@ export function apply(ctx: ClientContext): void {
       const generation = ++activityGeneration
       clearAnimationTimer()
       agent._queue.clear()
+      idleAnimationActive = false
       let finished = false
       const finish = (): void => {
         if (finished || generation !== activityGeneration) return
@@ -197,7 +210,9 @@ export function apply(ctx: ClientContext): void {
         }
       }
       const started = agent._animator.showAnimation(ACTIVITY_ANIMATION[activity], (_name: string, state: number) => {
-        if (state === 0) finish()
+        const action = animationStateAction(state)
+        if (action === 'request-exit') agent?._animator.exitAnimation()
+        else if (action === 'complete') finish()
       })
       if (!started) {
         console.warn(`[dsh-clippy] activity animation unavailable: ${activity}`)
@@ -205,7 +220,7 @@ export function apply(ctx: ClientContext): void {
         resumeIdle()
         return
       }
-      animationTimer = window.setTimeout(() => agent?._animator.exitAnimation(), ACTIVITY_TIMEOUT_MS)
+      animationTimer = window.setTimeout(() => agent?._animator.exitAnimation(), ANIMATION_SAFETY_MS)
     }
 
     const play = (activity: ClippyActivity): void => {
@@ -232,14 +247,20 @@ export function apply(ctx: ClientContext): void {
       let finished = false
       clearAnimationTimer()
       agent._queue.clear()
+      idleAnimationActive = false
       const started = agent._animator.showAnimation(lastIdleFlourish, (_name: string, state: number) => {
-        if (state !== 0 || finished || generation !== activityGeneration) return
-        finished = true
-        clearAnimationTimer()
-        resumeIdle()
+        if (finished || generation !== activityGeneration) return
+        const action = animationStateAction(state)
+        if (action === 'request-exit') {
+          agent?._animator.exitAnimation()
+        } else if (action === 'complete') {
+          finished = true
+          clearAnimationTimer()
+          resumeIdle()
+        }
       })
       if (started) {
-        animationTimer = window.setTimeout(() => agent?._animator.exitAnimation(), ACTIVITY_TIMEOUT_MS)
+        animationTimer = window.setTimeout(() => agent?._animator.exitAnimation(), ANIMATION_SAFETY_MS)
       } else {
         console.warn('[dsh-clippy] idle flourish unavailable')
         resumeIdle()
@@ -359,8 +380,12 @@ export function apply(ctx: ClientContext): void {
       if (pageIsActive(document.visibilityState, document.hasFocus())) {
         agent.resume()
         place(agent)
-        if (pendingSpeech !== undefined) {
-          say(pendingSpeech)
+        const speechToReplay = pendingSpeechToReplay(activeSpeech, pendingSpeech)
+        if (speechToReplay !== undefined) {
+          say(speechToReplay)
+        } else if (activeSpeech !== undefined) {
+          // The same balloon remains active; agent.resume() continues its
+          // word animation without starting a new speech instance.
         } else if (lastActivity !== 'idle') {
           play(lastActivity)
         } else {
@@ -369,8 +394,6 @@ export function apply(ctx: ClientContext): void {
         scheduleAuto()
         scheduleIdleFlourish()
       } else {
-        if (activeSpeech !== undefined) pendingSpeech = activeSpeech
-        releaseSpeech()
         clearAutoTimer()
         clearIdleTimer()
         abortAutoRequest()
@@ -399,6 +422,7 @@ export function apply(ctx: ClientContext): void {
       // before show avoids Clippy's idle queue delaying initial placement.
       place(agent)
       agent.show(true)
+      idleAnimationActive = agent._isIdleAnimation()
       if (!pageIsActive(document.visibilityState, document.hasFocus())) {
         agent.pause()
         return

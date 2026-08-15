@@ -56,8 +56,10 @@ export function parseClippyDraft(raw: string): ClippyDraft {
   if (statement.length === 0 || statement.length > MAX_STATEMENT_CHARS) {
     throw new Error(`Clippy statement must contain 1-${MAX_STATEMENT_CHARS} characters`)
   }
-  if (!/^you(?:\s|$)/u.test(statement)) {
-    throw new Error('Clippy statement must address the person directly and begin with you')
+  const beginsWithYou = /^you(?:\s|$)/u.test(statement)
+  const beginsWithYourSubject = parsed.kind === 'observation' && /^your\s+\S+/u.test(statement)
+  if (!beginsWithYou && !beginsWithYourSubject) {
+    throw new Error('Clippy statement must begin with you, or your plus a subject for an observation')
   }
   return {
     kind: parsed.kind as StatementKind,

@@ -2,7 +2,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { createUserMessage, ReasoningEffortId, type GenerateOptions, type StreamChunk } from '@deepseek-ai/dsh-llm'
 import { SessionId } from '@deepseek-ai/dsh-session'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { CLIPPY_SYSTEM_PROMPT, generateClippyResponse } from './generator.ts'
 
 function fakeLogger(warnings: string[] = []) {
@@ -48,7 +48,16 @@ function textChunks(text: string): StreamChunk[] {
 }
 
 describe('generateClippyResponse', () => {
-  it('asks for the strongest grounded statement on an explicit confidence ladder', () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  it('prefers a blame-shaped explicit gap before causal diagnosis or neutral observation', () => {
+    expect(CLIPPY_SYSTEM_PROMPT).toContain('0. apparent mistake (return kind observation)')
+    expect(CLIPPY_SYSTEM_PROMPT).toContain('you forgot to')
+    expect(CLIPPY_SYSTEM_PROMPT).toContain('must not claim why it happened')
+    expect(CLIPPY_SYSTEM_PROMPT).toContain('explicit intended result and visible gap')
+    expect(CLIPPY_SYSTEM_PROMPT).toContain('Tier 0 is rhetorical blame, not a causal diagnosis')
+    expect(CLIPPY_SYSTEM_PROMPT).toContain('Tier 0 is mandatory even when the mechanism is unknown')
+    expect(CLIPPY_SYSTEM_PROMPT).toContain('do not merely narrate the actual value with your')
     expect(CLIPPY_SYSTEM_PROMPT).toContain('diagnosis')
     expect(CLIPPY_SYSTEM_PROMPT).toContain('observation')
     expect(CLIPPY_SYSTEM_PROMPT).toContain('workflow')
@@ -56,6 +65,9 @@ describe('generateClippyResponse', () => {
     expect(CLIPPY_SYSTEM_PROMPT).toContain('technical conclusion or consequential correction')
     expect(CLIPPY_SYSTEM_PROMPT).toContain('conclusion, not the verification story')
     expect(CLIPPY_SYSTEM_PROMPT).toContain('never say you corrected, you fixed, or you verified')
+    expect(CLIPPY_SYSTEM_PROMPT).toContain('such as your server, your test, or your build')
+    expect(CLIPPY_SYSTEM_PROMPT).toContain('Never use your for a diagnosis or workflow')
+    expect(CLIPPY_SYSTEM_PROMPT).not.toContain('say you found, you saw, or you measured')
     expect(CLIPPY_SYSTEM_PROMPT).toContain('{"kind"')
     expect(CLIPPY_SYSTEM_PROMPT).not.toContain('"support"')
     expect(CLIPPY_SYSTEM_PROMPT).not.toContain('describe what the person')
@@ -117,7 +129,36 @@ describe('generateClippyResponse', () => {
     expect(second).toMatch(/drafting a résumé/)
   })
 
+  it('can use a dedicated configured model route without changing the agent route', async () => {
+    let captured: GenerateOptions | undefined
+    const ctx = {
+      logger: fakeLogger(),
+      llm: {
+        stream: (options: GenerateOptions) => {
+          captured = options
+          return (async function* () {
+            yield* textChunks('{"kind":"observation","statement":"you forgot to make the committed write reach every node"}')
+          })()
+        },
+      },
+    } as unknown as Context
+
+    await generateClippyResponse(ctx, fakeAgent(), new AbortController().signal, () => 0, {
+      provider: 'openrouter',
+      model: '@preset/dsh-clippy-v4-flash-official',
+      reasoningEffort: ReasoningEffortId('high'),
+    })
+
+    expect(captured).toMatchObject({
+      provider: 'openrouter',
+      model: '@preset/dsh-clippy-v4-flash-official',
+      reasoningEffort: ReasoningEffortId('high'),
+    })
+  })
+
   it('retries a rejected draft once with diagnosis forbidden', async () => {
+    const timeout = vi.spyOn(AbortSignal, 'timeout')
+      .mockImplementation(() => new AbortController().signal)
     const outputs = [
       '{"kind":"guess","statement":"you forgot to renew the queue lease"}',
       '{"kind":"workflow","statement":"you are bisecting a duplicate-delivery bug across queue workers"}',
@@ -127,6 +168,16 @@ describe('generateClippyResponse', () => {
     const ctx = {
       logger: fakeLogger(warnings),
       llm: {
+        resolveModelInfo: async () => ({
+          id: 'deepseek/deepseek-v4-pro-0813',
+          name: 'DeepSeek V4 Pro',
+          reasoning: {
+            efforts: [
+              { id: ReasoningEffortId('low'), name: 'Low' },
+              { id: ReasoningEffortId('high'), name: 'High' },
+            ],
+          },
+        }),
         stream: (options: GenerateOptions) => {
           captured.push(options)
           return (async function* () { yield* textChunks(outputs[captured.length - 1]!) })()
@@ -134,16 +185,101 @@ describe('generateClippyResponse', () => {
       },
     } as unknown as Context
 
-    const text = await generateClippyResponse(ctx, fakeAgent(), new AbortController().signal, () => 0)
+    const text = await generateClippyResponse(
+      ctx,
+      fakeAgent(ReasoningEffortId('high')),
+      new AbortController().signal,
+      () => 0,
+    )
 
     expect(captured).toHaveLength(2)
+    expect(timeout.mock.calls).toEqual([[90_000], [90_000]])
     expect(captured[0]?.signal).not.toBe(captured[1]?.signal)
     expect(captured.map(request => request.maxTokens)).toEqual([2_048, 2_048])
+    expect(captured.map(request => request.reasoningEffort)).toEqual([
+      ReasoningEffortId('high'),
+      ReasoningEffortId('low'),
+    ])
     expect(JSON.stringify(captured[1]?.messages)).toContain('diagnosis is forbidden')
     expect(warnings).toEqual(['[dsh-clippy] primary generation failed: schema'])
     expect(text).toBe(
       'It looks like you are bisecting a duplicate-delivery bug across queue workers. Would you like help writing a letter?',
     )
+  })
+
+  it('preserves the original reasoning effort when the model does not advertise low', async () => {
+    const captured: GenerateOptions[] = []
+    const outputs = [
+      'not JSON',
+      '{"kind":"workflow","statement":"you are bisecting a duplicate-delivery bug across queue workers"}',
+    ]
+    const ctx = {
+      logger: fakeLogger(),
+      llm: {
+        resolveModelInfo: async () => ({
+          id: 'custom-reasoner',
+          name: 'Custom reasoner',
+          reasoning: {
+            efforts: [{ id: ReasoningEffortId('high'), name: 'High' }],
+          },
+        }),
+        stream: (options: GenerateOptions) => {
+          captured.push(options)
+          return (async function* () { yield* textChunks(outputs[captured.length - 1]!) })()
+        },
+      },
+    } as unknown as Context
+
+    await generateClippyResponse(
+      ctx,
+      fakeAgent(ReasoningEffortId('high')),
+      new AbortController().signal,
+      () => 0,
+    )
+
+    expect(captured.map(request => request.reasoningEffort)).toEqual([
+      ReasoningEffortId('high'),
+      ReasoningEffortId('high'),
+    ])
+  })
+
+  it('hard-bounds stalled provider reads for both generation attempts', async () => {
+    const timeout = vi.spyOn(AbortSignal, 'timeout')
+    const warnings: string[] = []
+    let calls = 0
+    const ctx = {
+      logger: fakeLogger(warnings),
+      llm: {
+        stream: () => {
+          calls += 1
+          return {
+            [Symbol.asyncIterator]: () => ({
+              next: () => new Promise<IteratorResult<StreamChunk>>(() => {}),
+            }),
+          }
+        },
+      },
+    } as unknown as Context
+    const first = new AbortController()
+    const second = new AbortController()
+    timeout
+      .mockImplementationOnce(() => first.signal)
+      .mockImplementationOnce(() => second.signal)
+
+    const pending = generateClippyResponse(ctx, fakeAgent(), new AbortController().signal, () => 0)
+    await vi.waitFor(() => expect(calls).toBe(1))
+    first.abort(new DOMException('timed out', 'TimeoutError'))
+    await vi.waitFor(() => expect(calls).toBe(2))
+    second.abort(new DOMException('timed out', 'TimeoutError'))
+
+    await expect(pending).resolves.toBe(
+      'It looks like you are getting started on a new task. Would you like help writing a letter?',
+    )
+    expect(timeout.mock.calls).toEqual([[90_000], [90_000]])
+    expect(warnings).toEqual([
+      '[dsh-clippy] primary generation failed: timeout',
+      '[dsh-clippy] retry generation failed: timeout',
+    ])
   })
 
   it('uses a generic workflow line when both model drafts are rejected', async () => {

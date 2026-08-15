@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.1.6 - 2026-08-15
+
+- Prefer rhetorical, evidence-safe apparent mistakes such as `you forgot to` when a failed expectation states both intended and actual behavior.
+- Accept concise observations beginning with a specific `your` subject while keeping diagnoses and workflows second-person.
+- Give both high-reasoning attempts a hard 90-second deadline even when a provider stream does not promptly unwind on abort.
+- Retry failed high- or medium-reasoning drafts at low reasoning when the exact model route advertises it, preserving compatibility with models whose effort taxonomy differs.
+- Allow Clippy to use a dedicated configured Dsh model route, including an OpenRouter preset that pins an upstream provider.
+- Pin prompt evaluations to the official DeepSeek endpoint for current V4 Flash and Pro models and record the serving provider.
+- Exit activity animations through their authored waiting/exit branches, then reliably restart authentic idle instead of freezing on an exited idle frame.
+- Preserve an active speech instance across blur/focus without replaying its balloon or restarting its hold time.
+
 ## 0.1.5 - 2026-08-14
 
 - Accept usable short drafts without exact evidence excerpts; tolerate fenced JSON and harmless legacy fields instead of needlessly falling back.
