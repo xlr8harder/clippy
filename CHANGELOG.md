@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.7 - 2026-08-15
+
+- Replace clippy.js's untracked one-shot startup idle with a guaranteed visible, lifecycle-tracked quiet motion.
+- Clear the idle-active latch when an idle action exits, restart quiet motion after activity or speech expires, and alternate ambient animations after 12–30 seconds.
+- Keep larger idle flourishes sparse and defer them instead of interrupting an ambient animation already in progress.
+
 ## 0.1.6 - 2026-08-15
 
 - Prefer rhetorical, evidence-safe apparent mistakes such as `you forgot to` when a failed expectation states both intended and actual behavior.

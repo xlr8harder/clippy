@@ -4,7 +4,14 @@ import { initAgent } from 'clippyjs'
 import Clippy from 'clippyjs/agents/clippy'
 import { ACTIVITY_ANIMATION, activityInput, deriveActivity, type ClippyActivity } from './activity.ts'
 import { commandSpeechUpdate, type CommandSpeechCursor } from './command-speech.ts'
-import { chooseIdleFlourish, idleFlourishDelay, type IdleFlourish } from './idle.ts'
+import {
+  chooseIdleAmbient,
+  chooseIdleFlourish,
+  idleAmbientDelay,
+  idleFlourishDelay,
+  type IdleAmbient,
+  type IdleFlourish,
+} from './idle.ts'
 import {
   animationStateAction,
   clearPendingActivity,
@@ -71,6 +78,7 @@ export function apply(ctx: ClientContext): void {
     let speechTimer: number | undefined
     let autoTimer: number | undefined
     let idleTimer: number | undefined
+    let ambientTimer: number | undefined
     let autoRequest: AbortController | undefined
     let lastSnapshot: ConversationSnapshot | undefined
     let lastActivity: ClippyActivity = 'idle'
@@ -78,6 +86,7 @@ export function apply(ctx: ClientContext): void {
     let pendingSpeech: string | undefined
     let activeSpeech: string | undefined
     let lastIdleFlourish: IdleFlourish | undefined
+    let lastIdleAmbient: IdleAmbient | undefined
     let activityPlayback: ActivityPlaybackState = EMPTY_ACTIVITY_PLAYBACK
     let activityGeneration = 0
     let idleAnimationActive = false
@@ -102,6 +111,11 @@ export function apply(ctx: ClientContext): void {
       idleTimer = undefined
     }
 
+    const clearAmbientTimer = (): void => {
+      if (ambientTimer !== undefined) window.clearTimeout(ambientTimer)
+      ambientTimer = undefined
+    }
+
     const clearSpeechTimer = (): void => {
       if (speechTimer !== undefined) window.clearTimeout(speechTimer)
       speechTimer = undefined
@@ -109,6 +123,7 @@ export function apply(ctx: ClientContext): void {
 
     const stopPlayback = (): void => {
       clearAnimationTimer()
+      clearAmbientTimer()
       activityGeneration += 1
       activityPlayback = EMPTY_ACTIVITY_PLAYBACK
       idleAnimationActive = false
@@ -149,6 +164,7 @@ export function apply(ctx: ClientContext): void {
     const say = (text: string): void => {
       clearAutoTimer()
       clearIdleTimer()
+      clearAmbientTimer()
       if (agent === undefined || !pageIsActive(document.visibilityState, document.hasFocus())) {
         pendingSpeech = text
         return
@@ -169,20 +185,26 @@ export function apply(ctx: ClientContext): void {
       }, SPEECH_HOLD_MS)
     }
 
-    const resumeIdle = (): void => {
+    let scheduleAmbientIdle = (): void => {}
+
+    const resumeIdle = (preferred?: IdleAmbient): void => {
       if (agent === undefined || activityPlayback.active !== undefined || speechTimer !== undefined
         || idleAnimationActive || !pageIsActive(document.visibilityState, document.hasFocus())) return
-      // clippy.js keeps the name of an exited idle animation, so show(true)
-      // mistakes its frozen final frame for a live idle loop. Start a fresh
-      // authentic idle animation explicitly instead.
+      // clippy.js plays one idle action and leaves its final frame parked while
+      // retaining the Idle name. Start and track a fresh quiet action directly.
+      clearAmbientTimer()
       activityGeneration += 1
       clearAnimationTimer()
       agent._queue.clear()
+      lastIdleAmbient = preferred ?? chooseIdleAmbient(lastIdleAmbient, Math.random())
       idleAnimationActive = agent._animator.showAnimation(
-        agent._getIdleAnimation(),
+        lastIdleAmbient,
         agent._onIdleComplete.bind(agent),
       )
-      if (!idleAnimationActive) console.warn('[dsh-clippy] idle animation unavailable')
+      if (!idleAnimationActive) {
+        console.warn('[dsh-clippy] idle animation unavailable')
+        scheduleAmbientIdle()
+      }
     }
 
     const beginActivity = (activity: PlayableActivity): void => {
@@ -190,6 +212,7 @@ export function apply(ctx: ClientContext): void {
         || !pageIsActive(document.visibilityState, document.hasFocus())) return
       const generation = ++activityGeneration
       clearAnimationTimer()
+      clearAmbientTimer()
       agent._queue.clear()
       idleAnimationActive = false
       let finished = false
@@ -234,10 +257,20 @@ export function apply(ctx: ClientContext): void {
     let scheduleAuto = (): void => {}
     let scheduleIdleFlourish = (): void => {}
 
+    scheduleAmbientIdle = (): void => {
+      if (ambientTimer !== undefined || agent === undefined || idleAnimationActive
+        || activityPlayback.active !== undefined || speechTimer !== undefined
+        || !pageIsActive(document.visibilityState, document.hasFocus())) return
+      ambientTimer = window.setTimeout(() => {
+        ambientTimer = undefined
+        resumeIdle()
+      }, idleAmbientDelay(Math.random()))
+    }
+
     const playIdleFlourish = (): void => {
       idleTimer = undefined
       if (agent === undefined || lastActivity !== 'idle' || speechTimer !== undefined
-        || activityPlayback.active !== undefined
+        || activityPlayback.active !== undefined || idleAnimationActive
         || !pageIsActive(document.visibilityState, document.hasFocus())) {
         scheduleIdleFlourish()
         return
@@ -246,6 +279,7 @@ export function apply(ctx: ClientContext): void {
       const generation = ++activityGeneration
       let finished = false
       clearAnimationTimer()
+      clearAmbientTimer()
       agent._queue.clear()
       idleAnimationActive = false
       const started = agent._animator.showAnimation(lastIdleFlourish, (_name: string, state: number) => {
@@ -256,10 +290,12 @@ export function apply(ctx: ClientContext): void {
         } else if (action === 'complete') {
           finished = true
           clearAnimationTimer()
+          idleAnimationActive = false
           resumeIdle()
         }
       })
       if (started) {
+        idleAnimationActive = true
         animationTimer = window.setTimeout(() => agent?._animator.exitAnimation(), ANIMATION_SAFETY_MS)
       } else {
         console.warn('[dsh-clippy] idle flourish unavailable')
@@ -327,6 +363,7 @@ export function apply(ctx: ClientContext): void {
       lastSnapshot = snapshot
       clearTimers()
       clearIdleTimer()
+      clearAmbientTimer()
       observeManualCommand(snapshot)
 
       if (next !== lastActivity || next === 'done' || next === 'error') play(next)
@@ -365,6 +402,7 @@ export function apply(ctx: ClientContext): void {
       cancelSpeech()
       clearAutoTimer()
       clearIdleTimer()
+      clearAmbientTimer()
       abortAutoRequest()
 
       if (nextSession === undefined) return
@@ -396,6 +434,7 @@ export function apply(ctx: ClientContext): void {
       } else {
         clearAutoTimer()
         clearIdleTimer()
+        clearAmbientTimer()
         abortAutoRequest()
         agent.pause()
       }
@@ -418,11 +457,20 @@ export function apply(ctx: ClientContext): void {
         return
       }
       agent = loaded
+      const completeNativeIdle = agent._onIdleComplete.bind(agent)
+      agent._onIdleComplete = (animation: string, state: number): void => {
+        completeNativeIdle(animation, state)
+        if (state !== 0) return
+        idleAnimationActive = false
+        if (!disposed) scheduleAmbientIdle()
+      }
       // A zero-duration move completes synchronously while hidden. Doing it
       // before show avoids Clippy's idle queue delaying initial placement.
       place(agent)
       agent.show(true)
-      idleAnimationActive = agent._isIdleAnimation()
+      // Replace clippy.js's untracked one-shot startup idle with a guaranteed
+      // visible, lifecycle-tracked quiet motion.
+      idleAnimationActive = false
       if (!pageIsActive(document.visibilityState, document.hasFocus())) {
         agent.pause()
         return
@@ -431,6 +479,8 @@ export function apply(ctx: ClientContext): void {
         say(pendingSpeech)
       } else if (lastActivity !== 'idle') {
         play(lastActivity)
+      } else {
+        resumeIdle('IdleEyeBrowRaise')
       }
       scheduleAuto()
       scheduleIdleFlourish()
@@ -444,6 +494,7 @@ export function apply(ctx: ClientContext): void {
       cancelSpeech()
       clearAutoTimer()
       clearIdleTimer()
+      clearAmbientTimer()
       abortAutoRequest()
       disposeSession?.()
       disposeList()

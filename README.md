@@ -4,14 +4,14 @@ The earnest Microsoft Office Assistant, watching your [DeepSeek Harness](https:/
 
 ![Clippy turning a distributed-systems diagnosis into a meeting agenda](docs/clippy-live-demo.png)
 
-Clippy animates once when the agent state changes (`Thinking`, `Writing`, `Searching`, `GetAttention`, `Congratulate`, and `Alert`), then rests. A quiet idle flourish appears every 90 seconds to four minutes; idle bubbles appear after 8–20 minutes. Recent conversation, tool, error, and timing evidence is bounded; private reasoning is excluded.
+Clippy animates once when the agent state changes (`Thinking`, `Writing`, `Searching`, `GetAttention`, `Congratulate`, and `Alert`), then rests. While resting, quiet motions recur after 12–30 seconds and a larger idle flourish appears every 90 seconds to four minutes; idle bubbles appear after 8–20 minutes. Recent conversation, tool, error, and timing evidence is bounded; private reasoning is excluded.
 
 ## Install
 
-Download `dsh-clippy-0.1.6.tgz` from the GitHub release, then use Dsh's supported profile installer:
+Download `dsh-clippy-0.1.7.tgz` from the GitHub release, then use Dsh's supported profile installer:
 
 ```sh
-dsh plugin --profile web add ./dsh-clippy-0.1.6.tgz
+dsh plugin --profile web add ./dsh-clippy-0.1.7.tgz
 dsh --profile web
 ```
 
