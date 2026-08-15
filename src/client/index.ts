@@ -10,6 +10,7 @@ import {
   chooseIdleFlourish,
   idleAmbientDelay,
   idleFlourishDelay,
+  IDLE_AMBIENT_WATCHDOG_MS,
   IDLE_SETTLE_ANIMATION,
   type IdleAmbient,
   type IdleFlourish,
@@ -84,6 +85,7 @@ export function apply(ctx: ClientContext): void {
     let autoTimer: number | undefined
     let idleTimer: number | undefined
     let ambientTimer: number | undefined
+    let idleWatchdogTimer: number | undefined
     let activationTimer: number | undefined
     let activationRetries = 0
     let autoRequest: AbortController | undefined
@@ -126,6 +128,8 @@ export function apply(ctx: ClientContext): void {
     const clearAmbientTimer = (): void => {
       if (ambientTimer !== undefined) window.clearTimeout(ambientTimer)
       ambientTimer = undefined
+      if (idleWatchdogTimer !== undefined) window.clearTimeout(idleWatchdogTimer)
+      idleWatchdogTimer = undefined
     }
 
     const clearSpeechTimer = (): void => {
@@ -302,6 +306,17 @@ export function apply(ctx: ClientContext): void {
       if (!idleAnimationActive) {
         console.warn('[dsh-clippy] idle animation unavailable')
         scheduleAmbientIdle()
+      } else {
+        idleWatchdogTimer = window.setTimeout(() => {
+          idleWatchdogTimer = undefined
+          if (!idleAnimationActive) return
+          idleAnimationActive = false
+          if (lastActivity === 'idle' && activityPlayback.active === undefined
+            && activeSpeech === undefined && pendingSpeech === undefined
+            && pageIsActive(document.visibilityState, document.hasFocus())) {
+            resumeIdleSettle()
+          }
+        }, IDLE_AMBIENT_WATCHDOG_MS)
       }
     }
 
@@ -633,6 +648,8 @@ export function apply(ctx: ClientContext): void {
       agent._onIdleComplete = (animation: string, state: number): void => {
         completeNativeIdle(animation, state)
         if (state !== 0) return
+        if (idleWatchdogTimer !== undefined) window.clearTimeout(idleWatchdogTimer)
+        idleWatchdogTimer = undefined
         idleAnimationActive = false
         if (disposed) return
         if (pendingSpeech !== undefined) {

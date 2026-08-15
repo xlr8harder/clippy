@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.11 - 2026-08-15
+
+- Shorten the quiet interval between subtle eyebrow motions from 12–30 seconds to 6–12 seconds so ordinary idle no longer resembles a frozen avatar.
+- Add a four-second watchdog that restarts quiet idle if clippy.js loses an animation completion callback during a rapid state transition.
+- Leave rapid thinking, writing, completion, and idle projection intact while isolating the idle-liveness fix.
+
 ## 0.1.10 - 2026-08-15
 
 - Run the automatic commentary timer while Dsh is working as well as idle, without aborting generation when the agent changes state.

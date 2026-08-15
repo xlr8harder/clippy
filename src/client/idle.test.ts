@@ -6,6 +6,7 @@ import {
   IDLE_AMBIENT_ANIMATIONS,
   IDLE_AMBIENT_MAX_MS,
   IDLE_AMBIENT_MIN_MS,
+  IDLE_AMBIENT_WATCHDOG_MS,
   IDLE_FLOURISH_ANIMATIONS,
   IDLE_FLOURISH_MAX_MS,
   IDLE_FLOURISH_MIN_MS,
@@ -18,6 +19,10 @@ describe('idle flourishes', () => {
   it('uses a short bounded delay between quiet ambient motions', () => {
     expect(idleAmbientDelay(0)).toBe(IDLE_AMBIENT_MIN_MS)
     expect(idleAmbientDelay(1)).toBe(IDLE_AMBIENT_MAX_MS)
+    expect(IDLE_AMBIENT_MIN_MS).toBe(6_000)
+    expect(IDLE_AMBIENT_MAX_MS).toBe(12_000)
+    expect(IDLE_AMBIENT_WATCHDOG_MS).toBeGreaterThan(1_500)
+    expect(IDLE_AMBIENT_WATCHDOG_MS).toBeLessThan(IDLE_AMBIENT_MIN_MS)
   })
 
   it('selects a valid quiet ambient motion even when the base set has one member', () => {

@@ -3,8 +3,11 @@ export const IDLE_FLOURISH_MIN_MS = 90_000
 export const IDLE_FLOURISH_MAX_MS = 240_000
 
 /** A small motion between state changes so the resting sprite never feels dead. */
-export const IDLE_AMBIENT_MIN_MS = 12_000
-export const IDLE_AMBIENT_MAX_MS = 30_000
+export const IDLE_AMBIENT_MIN_MS = 6_000
+export const IDLE_AMBIENT_MAX_MS = 12_000
+
+/** Recover if clippy.js ever loses the completion callback for a quiet idle. */
+export const IDLE_AMBIENT_WATCHDOG_MS = 4_000
 
 export const IDLE_AMBIENT_ANIMATIONS = Object.freeze([
   'IdleEyeBrowRaise',
