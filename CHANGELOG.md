@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.10 - 2026-08-15
+
+- Run the automatic commentary timer while Dsh is working as well as idle, without aborting generation when the agent changes state.
+- Remember the last successfully summarized session evidence and skip later timer ticks until visible conversation, tool, error, queue, or run-state evidence changes.
+- Ignore blank sessions, private reasoning updates, and Clippy's own command lifecycle when deciding whether commentary has new material.
+- Smoothly exit the current animation before speech, hold the avatar still under the balloon, then resume the latest projected activity or idle motion.
+
 ## 0.1.9 - 2026-08-15
 
 - Exit activity animations promptly when Dsh changes state or returns to idle, while retaining only the newest pending state and a bounded smooth-exit grace period.

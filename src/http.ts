@@ -79,22 +79,15 @@ export function makeClippyGenerateHandler(ctx: Context, routeOverride: ClippyMod
       const sessionId = sessionIdFrom(await readJson(req))
       const agent = ctx.agents.get(SessionId(sessionId))
       if (agent === undefined) throw new HttpFailure(404, 'session has no live agent')
-      if (agent.status !== 'idle') throw new HttpFailure(409, 'agent is busy')
 
       const controller = new AbortController()
       const abortRequest = (): void => controller.abort(new Error('Clippy request disconnected'))
       req.once('aborted', abortRequest)
-      const disposeStatus = ctx.on('agent/status', ({ agent: changed, status }) => {
-        if (changed === agent && status === 'running') {
-          controller.abort(new Error('Clippy generation yielded to agent activity'))
-        }
-      })
       try {
         const text = await generateClippyResponse(ctx, agent, controller.signal, Math.random, routeOverride)
         writeJson(res, 200, { text })
       } finally {
         req.off('aborted', abortRequest)
-        disposeStatus()
       }
     } catch (error: unknown) {
       if (error instanceof HttpFailure) {

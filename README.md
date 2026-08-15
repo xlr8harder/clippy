@@ -4,14 +4,14 @@ The earnest Microsoft Office Assistant, watching your [DeepSeek Harness](https:/
 
 ![Clippy turning a distributed-systems diagnosis into a meeting agenda](docs/clippy-live-demo.png)
 
-Clippy animates when the agent state changes (`Thinking`, `Writing`, `Searching`, `GetAttention`, `Congratulate`, and `Alert`), then rests. He deliberately holds still while a generated balloon is visible. While resting, a small eyebrow motion recurs after 12–30 seconds and a larger idle flourish appears every 90 seconds to four minutes; idle bubbles appear after 8–20 minutes. Recent conversation, tool, error, and timing evidence is bounded; private reasoning is excluded.
+Clippy animates when the agent state changes (`Thinking`, `Writing`, `Searching`, `GetAttention`, `Congratulate`, and `Alert`), then rests. He smoothly finishes the current motion and holds still while a generated balloon is visible. A small eyebrow motion recurs after 12–30 seconds and a larger idle flourish appears every 90 seconds to four minutes. Automatic balloons are checked every 8–20 minutes whether Dsh is working or idle, but unchanged sessions are not summarized twice. Recent conversation, tool, error, and timing evidence is bounded; private reasoning is excluded.
 
 ## Install
 
-Download `dsh-clippy-0.1.9.tgz` from the GitHub release, then use Dsh's supported profile installer:
+Download `dsh-clippy-0.1.10.tgz` from the GitHub release, then use Dsh's supported profile installer:
 
 ```sh
-dsh plugin --profile web add ./dsh-clippy-0.1.9.tgz
+dsh plugin --profile web add ./dsh-clippy-0.1.10.tgz
 dsh --profile web
 ```
 
@@ -24,7 +24,7 @@ dsh plugin --profile web remove dsh-clippy
 To install a source checkout for development instead:
 
 ```sh
-dsh plugin --profile web add link:/absolute/path/to/clippy
+dsh plugin --profile web add link:/absolute/path/to/dsh-clippy
 ```
 
 ## Use
