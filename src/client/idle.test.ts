@@ -9,6 +9,7 @@ import {
   IDLE_FLOURISH_ANIMATIONS,
   IDLE_FLOURISH_MAX_MS,
   IDLE_FLOURISH_MIN_MS,
+  IDLE_SETTLE_SEQUENCE,
   idleAmbientDelay,
   idleFlourishDelay,
 } from './idle.ts'
@@ -24,6 +25,10 @@ describe('idle flourishes', () => {
       expect(chooseIdleAmbient(previous, 0)).not.toBe(previous)
       expect(chooseIdleAmbient(previous, 0.999)).not.toBe(previous)
     }
+  })
+
+  it('settles visibly with an immediate motion followed by the longer idle', () => {
+    expect(IDLE_SETTLE_SEQUENCE).toEqual(['IdleEyeBrowRaise', 'IdleSideToSide'])
   })
 
   it('uses a bounded randomized interval', () => {

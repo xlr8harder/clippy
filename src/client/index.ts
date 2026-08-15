@@ -9,6 +9,7 @@ import {
   chooseIdleFlourish,
   idleAmbientDelay,
   idleFlourishDelay,
+  IDLE_SETTLE_SEQUENCE,
   type IdleAmbient,
   type IdleFlourish,
 } from './idle.ts'
@@ -87,6 +88,7 @@ export function apply(ctx: ClientContext): void {
     let activeSpeech: string | undefined
     let lastIdleFlourish: IdleFlourish | undefined
     let lastIdleAmbient: IdleAmbient | undefined
+    let pendingIdleAmbient: IdleAmbient | undefined
     let activityPlayback: ActivityPlaybackState = EMPTY_ACTIVITY_PLAYBACK
     let activityGeneration = 0
     let idleAnimationActive = false
@@ -127,6 +129,7 @@ export function apply(ctx: ClientContext): void {
       activityGeneration += 1
       activityPlayback = EMPTY_ACTIVITY_PLAYBACK
       idleAnimationActive = false
+      pendingIdleAmbient = undefined
       // clippyjs's public Queue cannot cancel its active item. Drive the
       // bundled animator directly so a stale queued action cannot block the
       // next state or speech balloon.
@@ -179,7 +182,7 @@ export function apply(ctx: ClientContext): void {
         releaseSpeech()
         if (agent !== undefined && pageIsActive(document.visibilityState, document.hasFocus())) {
           if (lastActivity !== 'idle') play(lastActivity)
-          else resumeIdle()
+          else resumeIdleSequence()
         }
         scheduleIdleFlourish()
       }, SPEECH_HOLD_MS)
@@ -187,7 +190,7 @@ export function apply(ctx: ClientContext): void {
 
     let scheduleAmbientIdle = (): void => {}
 
-    const resumeIdle = (preferred?: IdleAmbient): void => {
+    const resumeIdle = (preferred?: IdleAmbient, followup?: IdleAmbient): void => {
       if (agent === undefined || activityPlayback.active !== undefined || speechTimer !== undefined
         || idleAnimationActive || !pageIsActive(document.visibilityState, document.hasFocus())) return
       // clippy.js plays one idle action and leaves its final frame parked while
@@ -197,14 +200,20 @@ export function apply(ctx: ClientContext): void {
       clearAnimationTimer()
       agent._queue.clear()
       lastIdleAmbient = preferred ?? chooseIdleAmbient(lastIdleAmbient, Math.random())
+      pendingIdleAmbient = followup
       idleAnimationActive = agent._animator.showAnimation(
         lastIdleAmbient,
         agent._onIdleComplete.bind(agent),
       )
       if (!idleAnimationActive) {
+        pendingIdleAmbient = undefined
         console.warn('[dsh-clippy] idle animation unavailable')
         scheduleAmbientIdle()
       }
+    }
+
+    const resumeIdleSequence = (): void => {
+      resumeIdle(IDLE_SETTLE_SEQUENCE[0], IDLE_SETTLE_SEQUENCE[1])
     }
 
     const beginActivity = (activity: PlayableActivity): void => {
@@ -215,6 +224,7 @@ export function apply(ctx: ClientContext): void {
       clearAmbientTimer()
       agent._queue.clear()
       idleAnimationActive = false
+      pendingIdleAmbient = undefined
       let finished = false
       const finish = (): void => {
         if (finished || generation !== activityGeneration) return
@@ -229,7 +239,7 @@ export function apply(ctx: ClientContext): void {
             if (generation === activityGeneration && activityPlayback.active === next) beginActivity(next)
           }, 0)
         } else {
-          resumeIdle()
+          resumeIdleSequence()
         }
       }
       const started = agent._animator.showAnimation(ACTIVITY_ANIMATION[activity], (_name: string, state: number) => {
@@ -282,6 +292,7 @@ export function apply(ctx: ClientContext): void {
       clearAmbientTimer()
       agent._queue.clear()
       idleAnimationActive = false
+      pendingIdleAmbient = undefined
       const started = agent._animator.showAnimation(lastIdleFlourish, (_name: string, state: number) => {
         if (finished || generation !== activityGeneration) return
         const action = animationStateAction(state)
@@ -291,7 +302,7 @@ export function apply(ctx: ClientContext): void {
           finished = true
           clearAnimationTimer()
           idleAnimationActive = false
-          resumeIdle()
+          resumeIdleSequence()
         }
       })
       if (started) {
@@ -299,7 +310,7 @@ export function apply(ctx: ClientContext): void {
         animationTimer = window.setTimeout(() => agent?._animator.exitAnimation(), ANIMATION_SAFETY_MS)
       } else {
         console.warn('[dsh-clippy] idle flourish unavailable')
-        resumeIdle()
+        resumeIdleSequence()
       }
       scheduleIdleFlourish()
     }
@@ -376,13 +387,13 @@ export function apply(ctx: ClientContext): void {
         resetTimer = window.setTimeout(() => {
           lastActivity = 'idle'
           activityPlayback = clearPendingActivity(activityPlayback)
-          resumeIdle()
+          resumeIdleSequence()
           scheduleIdleFlourish()
         }, COMPLETE_RESET_MS)
       }
       if (next === 'idle') {
         activityPlayback = clearPendingActivity(activityPlayback)
-        resumeIdle()
+        resumeIdleSequence()
         scheduleIdleFlourish()
       }
       if (!snapshot.running) scheduleAuto()
@@ -427,7 +438,7 @@ export function apply(ctx: ClientContext): void {
         } else if (lastActivity !== 'idle') {
           play(lastActivity)
         } else {
-          resumeIdle()
+          resumeIdleSequence()
         }
         scheduleAuto()
         scheduleIdleFlourish()
@@ -462,7 +473,11 @@ export function apply(ctx: ClientContext): void {
         completeNativeIdle(animation, state)
         if (state !== 0) return
         idleAnimationActive = false
-        if (!disposed) scheduleAmbientIdle()
+        const followup = pendingIdleAmbient
+        pendingIdleAmbient = undefined
+        if (disposed) return
+        if (followup !== undefined) resumeIdle(followup)
+        else scheduleAmbientIdle()
       }
       // A zero-duration move completes synchronously while hidden. Doing it
       // before show avoids Clippy's idle queue delaying initial placement.
@@ -480,7 +495,7 @@ export function apply(ctx: ClientContext): void {
       } else if (lastActivity !== 'idle') {
         play(lastActivity)
       } else {
-        resumeIdle('IdleEyeBrowRaise')
+        resumeIdleSequence()
       }
       scheduleAuto()
       scheduleIdleFlourish()

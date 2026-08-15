@@ -1,6 +1,6 @@
 {
   "name": "dsh-clippy",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "description": "A Clippy activity avatar for the DeepSeek Harness web client",
   "keywords": [
     "deepseek-harness",

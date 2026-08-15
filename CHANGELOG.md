@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.8 - 2026-08-15
+
+- Make startup and post-speech idle unmistakable with an immediate eyebrow motion followed directly by the longer side-to-side idle.
+- Document that Clippy intentionally holds his pose while a generated speech balloon is visible.
+
 ## 0.1.7 - 2026-08-15
 
 - Replace clippy.js's untracked one-shot startup idle with a guaranteed visible, lifecycle-tracked quiet motion.

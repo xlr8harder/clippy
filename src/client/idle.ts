@@ -13,6 +13,12 @@ export const IDLE_AMBIENT_ANIMATIONS = Object.freeze([
 
 export type IdleAmbient = (typeof IDLE_AMBIENT_ANIMATIONS)[number]
 
+/** Immediate visible handoff used after startup, activity, and speech. */
+export const IDLE_SETTLE_SEQUENCE: readonly [IdleAmbient, IdleAmbient] = Object.freeze([
+  'IdleEyeBrowRaise',
+  'IdleSideToSide',
+])
+
 /** Authentic, comparatively quiet Clippit idle animations. */
 export const IDLE_FLOURISH_ANIMATIONS = Object.freeze([
   'Idle1_1',
