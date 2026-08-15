@@ -2,22 +2,18 @@
 export const IDLE_FLOURISH_MIN_MS = 90_000
 export const IDLE_FLOURISH_MAX_MS = 240_000
 
-/** Quiet motion between state changes so the resting sprite never feels dead. */
+/** A small motion between state changes so the resting sprite never feels dead. */
 export const IDLE_AMBIENT_MIN_MS = 12_000
 export const IDLE_AMBIENT_MAX_MS = 30_000
 
 export const IDLE_AMBIENT_ANIMATIONS = Object.freeze([
   'IdleEyeBrowRaise',
-  'IdleSideToSide',
 ] as const)
 
 export type IdleAmbient = (typeof IDLE_AMBIENT_ANIMATIONS)[number]
 
-/** Immediate visible handoff used after startup, activity, and speech. */
-export const IDLE_SETTLE_SEQUENCE: readonly [IdleAmbient, IdleAmbient] = Object.freeze([
-  'IdleEyeBrowRaise',
-  'IdleSideToSide',
-])
+/** One subdued handoff used after startup, activity, and speech. */
+export const IDLE_SETTLE_ANIMATION: IdleAmbient = 'IdleEyeBrowRaise'
 
 /** Authentic, comparatively quiet Clippit idle animations. */
 export const IDLE_FLOURISH_ANIMATIONS = Object.freeze([
@@ -25,7 +21,6 @@ export const IDLE_FLOURISH_ANIMATIONS = Object.freeze([
   'IdleSideToSide',
   'IdleHeadScratch',
   'IdleFingerTap',
-  'IdleEyeBrowRaise',
 ] as const)
 
 export type IdleFlourish = (typeof IDLE_FLOURISH_ANIMATIONS)[number]
@@ -36,11 +31,12 @@ export function idleAmbientDelay(random: number): number {
     + Math.floor(roll * (IDLE_AMBIENT_MAX_MS - IDLE_AMBIENT_MIN_MS + 1))
 }
 
-/** Alternate the two quiet motions instead of repeatedly selecting one pose. */
+/** Select a quiet base motion; the list deliberately supports future additions. */
 export function chooseIdleAmbient(previous: IdleAmbient | undefined, random: number): IdleAmbient {
-  const choices = previous === undefined
+  const alternatives = previous === undefined
     ? IDLE_AMBIENT_ANIMATIONS
     : IDLE_AMBIENT_ANIMATIONS.filter(animation => animation !== previous)
+  const choices = alternatives.length === 0 ? IDLE_AMBIENT_ANIMATIONS : alternatives
   const roll = Math.min(Math.max(random, 0), 1 - Number.EPSILON)
   return choices[Math.floor(roll * choices.length)]!
 }

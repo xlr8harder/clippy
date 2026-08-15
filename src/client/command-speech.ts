@@ -11,6 +11,16 @@ export interface CommandSpeechUpdate {
   readonly text?: string
 }
 
+/** True only while the newest /clippy command is still generating its result. */
+export function clippyCommandRunning(snapshot: ConversationSnapshot): boolean {
+  for (let index = snapshot.nodes.length - 1; index >= 0; index -= 1) {
+    const node = snapshot.nodes[index]
+    if (node?.kind !== 'command' || node.name !== 'clippy') continue
+    return node.outcome === null
+  }
+  return false
+}
+
 function completedClippyCommand(snapshot: ConversationSnapshot): { id: string; text: string } | undefined {
   for (let index = snapshot.nodes.length - 1; index >= 0; index -= 1) {
     const node = snapshot.nodes[index]

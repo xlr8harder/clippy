@@ -4,14 +4,14 @@ The earnest Microsoft Office Assistant, watching your [DeepSeek Harness](https:/
 
 ![Clippy turning a distributed-systems diagnosis into a meeting agenda](docs/clippy-live-demo.png)
 
-Clippy animates once when the agent state changes (`Thinking`, `Writing`, `Searching`, `GetAttention`, `Congratulate`, and `Alert`), then rests. He deliberately holds still while a generated balloon is visible, then visibly settles back into idle. While resting, quiet motions recur after 12–30 seconds and a larger idle flourish appears every 90 seconds to four minutes; idle bubbles appear after 8–20 minutes. Recent conversation, tool, error, and timing evidence is bounded; private reasoning is excluded.
+Clippy animates when the agent state changes (`Thinking`, `Writing`, `Searching`, `GetAttention`, `Congratulate`, and `Alert`), then rests. He deliberately holds still while a generated balloon is visible. While resting, a small eyebrow motion recurs after 12–30 seconds and a larger idle flourish appears every 90 seconds to four minutes; idle bubbles appear after 8–20 minutes. Recent conversation, tool, error, and timing evidence is bounded; private reasoning is excluded.
 
 ## Install
 
-Download `dsh-clippy-0.1.8.tgz` from the GitHub release, then use Dsh's supported profile installer:
+Download `dsh-clippy-0.1.9.tgz` from the GitHub release, then use Dsh's supported profile installer:
 
 ```sh
-dsh plugin --profile web add ./dsh-clippy-0.1.8.tgz
+dsh plugin --profile web add ./dsh-clippy-0.1.9.tgz
 dsh --profile web
 ```
 
@@ -29,7 +29,7 @@ dsh plugin --profile web add link:/absolute/path/to/clippy
 
 ## Use
 
-Clippy moves automatically with the current session. Generated balloons remain visible for at least 15 seconds. Trigger an immediate conclusion for testing:
+Clippy moves automatically with the current session. Generated balloons remain visible for five seconds after the full text appears. Trigger an immediate conclusion for testing:
 
 ```text
 /clippy

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.9 - 2026-08-15
+
+- Exit activity animations promptly when Dsh changes state or returns to idle, while retaining only the newest pending state and a bounded smooth-exit grace period.
+- Keep idle animation running while `/clippy` generates and restart it reliably after the first snapshot, session changes, startup focus races, activity, speech, and flourishes.
+- Replace the conspicuous two-animation idle handoff with one subdued eyebrow motion; keep finger tapping, head scratching, and side-to-side motion in the rare flourish pool.
+- Hold a completed balloon for five seconds after its last word appears rather than timing from the beginning of speech.
+- Make tab pause/resume edge-triggered so paired visibility and focus events cannot create duplicate animator loops.
+
 ## 0.1.8 - 2026-08-15
 
 - Make startup and post-speech idle unmistakable with an immediate eyebrow motion followed directly by the longer side-to-side idle.

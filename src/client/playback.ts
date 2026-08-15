@@ -10,6 +10,8 @@ export interface ActivityPlaybackState {
 export interface ActivityPlaybackTransition {
   readonly state: ActivityPlaybackState
   readonly start?: PlayableActivity
+  /** The current animation should take its authored exit branch now. */
+  readonly exitActive?: boolean
 }
 
 export const EMPTY_ACTIVITY_PLAYBACK: ActivityPlaybackState = Object.freeze({})
@@ -37,8 +39,10 @@ export function requestActivityPlayback(
   activity: PlayableActivity,
 ): ActivityPlaybackTransition {
   if (state.active === undefined) return { state: { active: activity }, start: activity }
-  if (state.active === activity) return { state }
-  return { state: { active: state.active, pending: activity } }
+  if (state.active === activity) {
+    return state.pending === undefined ? { state } : { state: { active: activity } }
+  }
+  return { state: { active: state.active, pending: activity }, exitActive: true }
 }
 
 /** Advance only the animation that actually completed, ignoring stale callbacks. */
@@ -51,7 +55,7 @@ export function completeActivityPlayback(
   return { state: { active: state.pending }, start: state.pending }
 }
 
-/** An idle transition lets the current animation finish but drops stale queued work. */
+/** An idle transition drops stale queued work before requesting the active animation's exit. */
 export function clearPendingActivity(state: ActivityPlaybackState): ActivityPlaybackState {
   return state.active === undefined ? EMPTY_ACTIVITY_PLAYBACK : { active: state.active }
 }

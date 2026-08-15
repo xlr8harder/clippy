@@ -1,6 +1,6 @@
 import type { ConversationSnapshot } from '@deepseek-ai/dsh-client-runtime/client'
 import { describe, expect, it } from 'vitest'
-import { commandSpeechUpdate, type CommandSpeechCursor } from './command-speech.ts'
+import { clippyCommandRunning, commandSpeechUpdate, type CommandSpeechCursor } from './command-speech.ts'
 
 function snapshot(
   openState: ConversationSnapshot['openState'],
@@ -23,6 +23,11 @@ function snapshot(
 }
 
 describe('commandSpeechUpdate', () => {
+  it('distinguishes a generating /clippy command from its completed history', () => {
+    expect(clippyCommandRunning(snapshot('open', [{ id: 'running' }]))).toBe(true)
+    expect(clippyCommandRunning(snapshot('open', [{ id: 'done', outcome: 'success', text: 'ready' }]))).toBe(false)
+  })
+
   it('baselines command history only after a newly selected session is open', () => {
     const cold: CommandSpeechCursor = { hydrated: false }
     const loading = commandSpeechUpdate(snapshot('loading'), cold)

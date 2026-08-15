@@ -9,7 +9,7 @@ import {
   IDLE_FLOURISH_ANIMATIONS,
   IDLE_FLOURISH_MAX_MS,
   IDLE_FLOURISH_MIN_MS,
-  IDLE_SETTLE_SEQUENCE,
+  IDLE_SETTLE_ANIMATION,
   idleAmbientDelay,
   idleFlourishDelay,
 } from './idle.ts'
@@ -20,15 +20,13 @@ describe('idle flourishes', () => {
     expect(idleAmbientDelay(1)).toBe(IDLE_AMBIENT_MAX_MS)
   })
 
-  it('does not immediately repeat a quiet ambient motion', () => {
-    for (const previous of IDLE_AMBIENT_ANIMATIONS) {
-      expect(chooseIdleAmbient(previous, 0)).not.toBe(previous)
-      expect(chooseIdleAmbient(previous, 0.999)).not.toBe(previous)
-    }
+  it('selects a valid quiet ambient motion even when the base set has one member', () => {
+    expect(chooseIdleAmbient('IdleEyeBrowRaise', 0)).toBe('IdleEyeBrowRaise')
+    expect(chooseIdleAmbient('IdleEyeBrowRaise', 0.999)).toBe('IdleEyeBrowRaise')
   })
 
-  it('settles visibly with an immediate motion followed by the longer idle', () => {
-    expect(IDLE_SETTLE_SEQUENCE).toEqual(['IdleEyeBrowRaise', 'IdleSideToSide'])
+  it('settles with one subdued motion rather than a conspicuous burst', () => {
+    expect(IDLE_SETTLE_ANIMATION).toBe('IdleEyeBrowRaise')
   })
 
   it('uses a bounded randomized interval', () => {
